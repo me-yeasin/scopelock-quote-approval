@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ScopeLock — quote, change order and invoice workspace for trades." />
+  <title>ScopeLock &mdash; Overview</title>
+  <!-- Icons: Lucide (lucide-static v1.70.0, ISC) — SVG markup inlined so the demo stays dependency-free -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="../app/favicon.ico" />
+</head>
+<body>
+
+  <div class="scrim" id="scrim" hidden></div>
+
+  <div class="shell">
+
+    <!-- ============ Sidebar ============ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
+        <span class="brand-copy">
+          <span class="brand-name">ScopeLock</span>
+          <span class="brand-sub">Trade workspace</span>
+        </span>
+      </div>
+
+      <nav class="nav" aria-label="Primary">
+        <p class="nav-group">Workspace</p>
+
+        <a href="#" class="nav-item is-active" data-nav="overview" aria-current="page">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          <span class="nav-label">Overview</span>
+        </a>
+
+        <a href="#" class="nav-item" data-nav="jobs">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+          <span class="nav-label">Jobs</span>
+          <span class="nav-badge">3</span>
+        </a>
+
+        <a href="#" class="nav-item" data-nav="quotes">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <span class="nav-label">Quotes</span>
+          <span class="nav-badge">2</span>
+        </a>
+
+        <p class="nav-group">Records</p>
+
+        <a href="#" class="nav-item" data-nav="changes">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/></svg>
+          <span class="nav-label">Change orders</span>
+          <span class="nav-badge">1</span>
+        </a>
+
+        <a href="#" class="nav-item" data-nav="invoices">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
+          <span class="nav-label">Invoices</span>
+        </a>
+
+        <a href="#" class="nav-item" data-nav="audit">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>
+          <span class="nav-label">Audit log</span>
+        </a>
+
+        <a href="#" class="nav-item" data-nav="settings">
+          <svg class="ico nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+          <span class="nav-label">Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="sync-card">
+          <span class="pulse" aria-hidden="true"></span>
+          <span class="sync-copy">
+            <span class="sync-title">Ledger up to date</span>
+            <span class="sync-sub">Synced 2 minutes ago</span>
+          </span>
+        </div>
+
+        <button class="user-card" type="button">
+          <span class="user-avatar">JD</span>
+          <span class="user-meta">
+            <span class="user-name">James Doyle</span>
+            <span class="user-org">Harris &amp; Co.</span>
+          </span>
+          <svg class="ico ico-sm user-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ============ Main ============ -->
+    <main class="main">
+
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="topbar-left">
+            <button class="icon-btn menu-toggle" id="menuToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
+            </button>
+
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <span class="crumb-muted">Workspace</span>
+              <svg class="ico ico-sm crumb-sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="crumb-current">Overview</span>
+            </nav>
+          </div>
+
+          <div class="topbar-right">
+            <div class="search" role="search">
+              <svg class="ico ico-sm search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+              <input id="searchInput" type="search" class="search-input" placeholder="Search jobs, customers, quotes" aria-label="Search" />
+              <kbd class="kbd">&#8984;K</kbd>
+            </div>
+
+            <button class="icon-btn bell" type="button" aria-label="Notifications">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+              <span class="bell-dot" aria-hidden="true"></span>
+            </button>
+          </div>
+          </div>
+      </header>
+
+      <div class="page">
+
+        <!-- Page heading -->
+        <section class="page-head">
+          <div class="page-head-copy">
+            <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>Saturday, 7 November</p>
+            <h1>Good morning, <em>James</em>.</h1>
+            <p class="lede">Three change orders are waiting on your customers. Lock the scope before the invoice goes out.</p>
+          </div>
+
+          <div class="page-actions">
+            <button class="btn btn-ghost" type="button">
+              <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              This month
+              <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <button class="btn btn-primary" type="button">
+              <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+              New job
+            </button>
+          </div>
+        </section>
+
+        <!-- Stats -->
+        <section class="stats" aria-label="Key numbers">
+
+          <article class="stat">
+            <div class="stat-top">
+              <span class="stat-label">Total jobs</span>
+              <span class="chip chip-pine">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+              </span>
+            </div>
+            <div class="stat-mid">
+              <span class="stat-value">12</span>
+              <svg class="spark" viewBox="0 0 64 26" fill="none" aria-hidden="true">
+                <path d="M1 20 11 16 21 17 31 12 41 13 51 8 63 6 63 26 1 26Z" fill="currentColor" opacity=".07"/>
+                <path d="M1 20 11 16 21 17 31 12 41 13 51 8 63 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-foot">
+              <span class="delta delta-up">
+                <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+                4
+              </span>
+              <span class="stat-note">vs last month</span>
+            </div>
+          </article>
+
+          <article class="stat">
+            <div class="stat-top">
+              <span class="stat-label">Pending changes</span>
+              <span class="chip chip-amber">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/></svg>
+              </span>
+            </div>
+            <div class="stat-mid">
+              <span class="stat-value">3</span>
+              <svg class="spark spark-amber" viewBox="0 0 64 26" fill="none" aria-hidden="true">
+                <path d="M1 10 11 13 21 9 31 15 41 11 51 14 63 12 63 26 1 26Z" fill="currentColor" opacity=".07"/>
+                <path d="M1 10 11 13 21 9 31 15 41 11 51 14 63 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-foot">
+              <span class="delta delta-wait">
+                <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                3
+              </span>
+              <span class="stat-note">awaiting approval</span>
+            </div>
+          </article>
+
+          <article class="stat">
+            <div class="stat-top">
+              <span class="stat-label">Approved this month</span>
+              <span class="chip chip-green">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>
+              </span>
+            </div>
+            <div class="stat-mid">
+              <span class="stat-value num">&pound;8,450</span>
+              <svg class="spark spark-green" viewBox="0 0 64 26" fill="none" aria-hidden="true">
+                <path d="M1 22 11 19 21 20 31 14 41 16 51 9 63 5 63 26 1 26Z" fill="currentColor" opacity=".07"/>
+                <path d="M1 22 11 19 21 20 31 14 41 16 51 9 63 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-foot">
+              <span class="delta delta-up">
+                <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+                12%
+              </span>
+              <span class="stat-note">vs last month</span>
+            </div>
+          </article>
+
+          <article class="stat">
+            <div class="stat-top">
+              <span class="stat-label">Invoiced</span>
+              <span class="chip chip-blue">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
+              </span>
+            </div>
+            <div class="stat-mid">
+              <span class="stat-value num">&pound;14,200</span>
+              <svg class="spark spark-blue" viewBox="0 0 64 26" fill="none" aria-hidden="true">
+                <path d="M1 21 11 20 21 15 31 17 41 10 51 11 63 4 63 26 1 26Z" fill="currentColor" opacity=".07"/>
+                <path d="M1 21 11 20 21 15 31 17 41 10 51 11 63 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-foot">
+              <span class="delta delta-up">
+                <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+                22%
+              </span>
+              <span class="stat-note">vs last month</span>
+            </div>
+          </article>
+
+        </section>
+
+        <!-- Quick actions -->
+        <section class="quick">
+          <div class="section-label">
+            <h2>Quick actions</h2>
+            <span class="hairline" aria-hidden="true"></span>
+          </div>
+
+          <div class="actions">
+            <a href="#" class="action action-primary">
+              <span class="action-icon">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              </span>
+              <span class="action-copy">
+                <span class="action-title">New job</span>
+                <span class="action-desc">Create a job and start a quote</span>
+              </span>
+              <span class="action-go">
+                <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+              </span>
+            </a>
+
+            <a href="#" class="action">
+              <span class="action-icon">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11.35 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v5.35"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M14 19h6"/><path d="M17 16v6"/></svg>
+              </span>
+              <span class="action-copy">
+                <span class="action-title">New quote</span>
+                <span class="action-desc">Build a quote with line items</span>
+              </span>
+              <span class="action-go">
+                <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+              </span>
+            </a>
+
+            <a href="#" class="action">
+              <span class="action-icon">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/></svg>
+              </span>
+              <span class="action-copy">
+                <span class="action-title">Change order</span>
+                <span class="action-desc">Add a change to an active job</span>
+              </span>
+              <span class="action-go">
+                <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+              </span>
+            </a>
+
+            <a href="#" class="action">
+              <span class="action-icon">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
+              </span>
+              <span class="action-copy">
+                <span class="action-title">Invoice</span>
+                <span class="action-desc">Generate a PDF invoice</span>
+              </span>
+              <span class="action-go">
+                <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+              </span>
+            </a>
+          </div>
+        </section>
+
+        <!-- Content -->
+        <div class="content">
+
+          <section class="panel panel-jobs">
+            <div class="panel-head">
+              <div class="panel-title-wrap">
+                <h2>Recent jobs</h2>
+                <span class="count">7</span>
+              </div>
+
+              <div class="panel-tools">
+                <div class="segmented" role="group" aria-label="Filter jobs">
+                  <button class="seg is-active" type="button" data-filter="all">All</button>
+                  <button class="seg" type="button" data-filter="awaiting">Awaiting</button>
+                  <button class="seg" type="button" data-filter="approved">Approved</button>
+                </div>
+                <a href="#" class="link">
+                  View all
+                  <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+                </a>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="jobs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Job</th>
+                    <th scope="col">Customer</th>
+                    <th scope="col" class="t-right">Quote</th>
+                    <th scope="col" class="t-right">Changes</th>
+                    <th scope="col" class="t-right">Total</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="t-right">Updated</th>
+                  </tr>
+                </thead>
+                <tbody id="jobsBody">
+                  <tr data-status="approved">
+                    <td class="cell-job">
+                      <div class="job-title">Bathroom renovation</div>
+                      <div class="job-sub">#J-2026-048 <span class="sep-dot"></span> London</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">MH</span>M. Harris</span>
+                    </td>
+                    <td class="t-right num">&pound;1,200.00</td>
+                    <td class="t-right"><span class="change up">+&pound;180.00</span></td>
+                    <td class="t-right"><span class="total num">&pound;1,380.00</span></td>
+                    <td><span class="status status-approved"><span class="status-dot"></span>Approved</span></td>
+                    <td class="t-right cell-time">2 days ago</td>
+                  </tr>
+
+                  <tr data-status="awaiting">
+                    <td class="cell-job">
+                      <div class="job-title">Kitchen tap replacement</div>
+                      <div class="job-sub">#J-2026-047 <span class="sep-dot"></span> Manchester</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">SP</span>S. Patel</span>
+                    </td>
+                    <td class="t-right num">&pound;240.00</td>
+                    <td class="t-right"><span class="change none">&mdash;</span></td>
+                    <td class="t-right"><span class="total num">&pound;240.00</span></td>
+                    <td><span class="status status-awaiting"><span class="status-dot"></span>Awaiting</span></td>
+                    <td class="t-right cell-time">12 Apr</td>
+                  </tr>
+
+                  <tr data-status="inprogress">
+                    <td class="cell-job">
+                      <div class="job-title">Boiler service &amp; check</div>
+                      <div class="job-sub">#J-2026-046 <span class="sep-dot"></span> Birmingham</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">DW</span>D. Wright</span>
+                    </td>
+                    <td class="t-right num">&pound;350.00</td>
+                    <td class="t-right"><span class="change up">+&pound;60.00</span></td>
+                    <td class="t-right"><span class="total num">&pound;410.00</span></td>
+                    <td><span class="status status-progress"><span class="status-dot"></span>In progress</span></td>
+                    <td class="t-right cell-time">10 Apr</td>
+                  </tr>
+
+                  <tr data-status="approved">
+                    <td class="cell-job">
+                      <div class="job-title">Radiator install</div>
+                      <div class="job-sub">#J-2026-045 <span class="sep-dot"></span> Leeds</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">LC</span>L. Chen</span>
+                    </td>
+                    <td class="t-right num">&pound;890.00</td>
+                    <td class="t-right"><span class="change down">-&pound;50.00</span></td>
+                    <td class="t-right"><span class="total num">&pound;840.00</span></td>
+                    <td><span class="status status-approved"><span class="status-dot"></span>Approved</span></td>
+                    <td class="t-right cell-time">8 Apr</td>
+                  </tr>
+
+                  <tr data-status="draft">
+                    <td class="cell-job">
+                      <div class="job-title">External painting</div>
+                      <div class="job-sub">#J-2026-044 <span class="sep-dot"></span> Bristol</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">RO</span>R. Okafor</span>
+                    </td>
+                    <td class="t-right num">&pound;1,100.00</td>
+                    <td class="t-right"><span class="change none">&mdash;</span></td>
+                    <td class="t-right"><span class="total num">&pound;1,100.00</span></td>
+                    <td><span class="status status-draft"><span class="status-dot"></span>Draft</span></td>
+                    <td class="t-right cell-time">5 Apr</td>
+                  </tr>
+
+                  <tr data-status="awaiting">
+                    <td class="cell-job">
+                      <div class="job-title">Loft insulation</div>
+                      <div class="job-sub">#J-2026-043 <span class="sep-dot"></span> Nottingham</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">AN</span>A. Novak</span>
+                    </td>
+                    <td class="t-right num">&pound;1,650.00</td>
+                    <td class="t-right"><span class="change up">+&pound;220.00</span></td>
+                    <td class="t-right"><span class="total num">&pound;1,870.00</span></td>
+                    <td><span class="status status-awaiting"><span class="status-dot"></span>Awaiting</span></td>
+                    <td class="t-right cell-time">3 Apr</td>
+                  </tr>
+
+                  <tr data-status="draft">
+                    <td class="cell-job">
+                      <div class="job-title">Garden fence repair</div>
+                      <div class="job-sub">#J-2026-042 <span class="sep-dot"></span> Cardiff</div>
+                    </td>
+                    <td>
+                      <span class="customer"><span class="avatar">TB</span>T. Begum</span>
+                    </td>
+                    <td class="t-right num">&pound;480.00</td>
+                    <td class="t-right"><span class="change none">&mdash;</span></td>
+                    <td class="t-right"><span class="total num">&pound;480.00</span></td>
+                    <td><span class="status status-draft"><span class="status-dot"></span>Draft</span></td>
+                    <td class="t-right cell-time">1 Apr</td>
+                  </tr>
+
+                  <tr class="empty-row" hidden>
+                    <td colspan="7">No jobs match this filter.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel-foot">
+              <span class="foot-note">Showing 7 of 12 jobs</span>
+              <a href="#" class="link">
+                Open jobs board
+                <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </a>
+            </div>
+          </section>
+
+          <aside class="rail">
+
+            <section class="scope">
+              <div class="scope-head">
+                <span class="scope-icon">
+                  <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+                </span>
+                <span class="scope-kicker">Scope protection</span>
+                <span class="scope-badge"><span class="scope-badge-dot"></span>Locked</span>
+              </div>
+
+              <p class="scope-label">Protected this month</p>
+              <p class="scope-value num">&pound;8,450<span class="scope-cents">.00</span></p>
+              <p class="scope-sub">Across 9 approved change orders</p>
+
+              <div class="scope-bar" aria-hidden="true">
+                <span class="bar bar-approved"></span>
+                <span class="bar bar-awaiting"></span>
+              </div>
+
+              <div class="scope-legend">
+                <div class="legend-row">
+                  <span class="key key-lime" aria-hidden="true"></span>
+                  <span class="legend-name">Approved</span>
+                  <span class="legend-val num">&pound;8,450</span>
+                </div>
+                <div class="legend-row">
+                  <span class="key key-amber" aria-hidden="true"></span>
+                  <span class="legend-name">Awaiting</span>
+                  <span class="legend-val num">&pound;1,240</span>
+                </div>
+              </div>
+
+              <button class="scope-cta" type="button">
+                Review 3 pending changes
+                <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            </section>
+
+            <section class="panel panel-activity">
+              <div class="panel-head">
+                <div class="panel-title-wrap">
+                  <h2>Recent activity</h2>
+                </div>
+                <a href="#" class="link">
+                  Audit log
+                  <svg class="ico ico-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+                </a>
+              </div>
+
+              <ul class="activity">
+                <li class="activity-item">
+                  <span class="event-icon ev-green">
+                    <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>
+                  </span>
+                  <div class="event-body">
+                    <p class="event-text"><strong>M. Harris</strong> approved the quote for <strong>Bathroom renovation</strong></p>
+                    <span class="event-time">2 hours ago</span>
+                  </div>
+                </li>
+
+                <li class="activity-item">
+                  <span class="event-icon ev-amber">
+                    <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M9 10h6"/><path d="M12 13V7"/><path d="M9 17h6"/></svg>
+                  </span>
+                  <div class="event-body">
+                    <p class="event-text"><strong>S. Patel</strong> requested a change on <strong>Kitchen tap replacement</strong></p>
+                    <span class="event-time">5 hours ago</span>
+                  </div>
+                </li>
+
+                <li class="activity-item">
+                  <span class="event-icon ev-blue">
+                    <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
+                  </span>
+                  <div class="event-body">
+                    <p class="event-text">Invoice <strong>#INV-2026-031</strong> generated for <strong>Boiler service</strong></p>
+                    <span class="event-time">1 day ago</span>
+                  </div>
+                </li>
+
+                <li class="activity-item">
+                  <span class="event-icon ev-red">
+                    <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                  </span>
+                  <div class="event-body">
+                    <p class="event-text">Change order rejected on <strong>Radiator install</strong> &mdash; &pound;50 voided</p>
+                    <span class="event-time">2 days ago</span>
+                  </div>
+                </li>
+
+                <li class="activity-item">
+                  <span class="event-icon ev-stone">
+                    <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+                  </span>
+                  <div class="event-body">
+                    <p class="event-text">Quote sent to <strong>R. Okafor</strong> for <strong>External painting</strong></p>
+                    <span class="event-time">3 days ago</span>
+                  </div>
+                </li>
+              </ul>
+            </section>
+
+          </aside>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
