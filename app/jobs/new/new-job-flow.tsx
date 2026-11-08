@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Briefcase,
   Check,
+  CircleAlert,
   CircleCheck,
   FileText,
   History,
@@ -27,6 +28,7 @@ import {
   User,
   type LucideIcon,
 } from "lucide-react";
+import { createJob } from "./actions";
 
 /* ------------------------------------------------------------------
    Types
@@ -337,6 +339,9 @@ export default function NewJobFlow() {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const firstStepRender = useRef(true);
   const dirtyRef = useRef(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [serverSaving, setServerSaving] = useState(false);
+  const [jobRef, setJobRef] = useState<string | null>(null);
 
   const currency = draft.currency;
   const currencySymbol = currency === "GBP" ? "£" : "€";
@@ -578,7 +583,7 @@ export default function NewJobFlow() {
     if (step < 3) setStep((step + 1) as Step);
   }
 
-  function handleSave() {
+  async function handleSave() {
     const step1Errors = validateStep1();
     const step2Errors = validateStep2();
     const allErrors = { ...step1Errors, ...step2Errors };
@@ -591,13 +596,48 @@ export default function NewJobFlow() {
       return;
     }
 
+    // Keep the local copy as a fallback so an interrupted session can resume,
+    // even if the server write is slow or briefly unreachable.
     try {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
-      /* Autosave already reported the failure. */
+      /* Ignore storage failures. */
     }
-    setSaveState("saved");
-    setSaved(true);
+
+    setSaveState("saving");
+    setServerSaving(true);
+    setSaveError(null);
+
+    try {
+      const result = await createJob(JSON.stringify(draft));
+
+      if (!result.ok) {
+        setSaveError(result.error);
+        setServerSaving(false);
+        setSaveState("idle");
+        return;
+      }
+
+      setJobRef(result.reference);
+      setSaveState("saved");
+      setServerSaving(false);
+      setSaved(true);
+
+      // Persisted to the workspace, so the local recovery copy is no longer
+      // needed — clear it so this draft isn't restored as editable next visit.
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* Ignore storage failures. */
+      }
+      dirtyRef.current = false;
+    } catch (error: unknown) {
+      setSaveError(
+        error instanceof Error ? error.message : "Could not save the job.",
+      );
+      setServerSaving(false);
+      setSaveState("idle");
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -642,6 +682,8 @@ export default function NewJobFlow() {
     setRestored(false);
     setSaved(false);
     setSaveState("idle");
+    setSaveError(null);
+    setJobRef(null);
     firstStepRender.current = true;
     scrollRef.current?.scrollTo({ top: 0 });
   }
@@ -714,11 +756,15 @@ export default function NewJobFlow() {
               </p>
               <h1 className="nj-title">Your quote is ready.</h1>
               <p className="nj-lede">
-                It is stored as a draft on this device. Sending the approval link is the
-                next step — nothing has gone to {firstName} yet.
+                It is saved to your ScopeLock workspace as a draft. Sending the approval
+                link is the next step — nothing has gone to {firstName} yet.
               </p>
 
               <div className="nj-success-card">
+                <div className="nj-success-row">
+                  <span>Reference</span>
+                  <strong>{jobRef ?? "—"}</strong>
+                </div>
                 <div className="nj-success-row">
                   <span>Customer</span>
                   <strong>{draft.customerName || "—"}</strong>
@@ -758,7 +804,7 @@ export default function NewJobFlow() {
 
               <p className="nj-success-note">
                 <Lock className="ico ico-xs" aria-hidden="true" />
-                Draft only — nothing sent yet.
+                Saved as a draft in your workspace — nothing sent yet.
               </p>
             </div>
           ) : (
@@ -1291,8 +1337,8 @@ export default function NewJobFlow() {
                               <div className="nj-callout nj-callout-save">
                                 <Lock className="ico ico-sm" aria-hidden="true" />
                                 <p>
-                                  Saving keeps this as a draft on this device. Nothing is
-                                  sent to {firstName} until you send the link.
+                                  Saving keeps this as a draft in your ScopeLock workspace.
+                                  Nothing is sent to {firstName} until you send the link.
                                 </p>
                               </div>
                             </div>
@@ -1300,6 +1346,13 @@ export default function NewJobFlow() {
                         </>
                       ) : null}
                     </form>
+
+                    {saveError ? (
+                      <div className="nj-save-error" role="alert">
+                        <CircleAlert className="ico ico-sm" aria-hidden="true" />
+                        <p>{saveError}</p>
+                      </div>
+                    ) : null}
 
                     <div className="nj-actions">
                       <button type="button" className="btn btn-ghost" onClick={handleBack}>

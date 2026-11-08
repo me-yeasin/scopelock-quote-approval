@@ -662,6 +662,30 @@
 .nj-callout-save .ico { color: var(--amber); }
 .nj-callout-save p { color: var(--amber); }
 
+/* ---------- Save error banner ---------- */
+
+.nj-save-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 18px 26px 0;
+  padding: 12px 13px;
+  border: 1px solid var(--red-line, #F0C9C4);
+  border-radius: 11px;
+  background: var(--red-soft, #FCEDEB);
+}
+.nj-save-error .ico {
+  flex: none;
+  margin-top: 1px;
+  color: var(--red, #B3453A);
+}
+.nj-save-error p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--red, #B3453A);
+}
+
 /* ---------- Review rows ---------- */
 
 .nj-review {
