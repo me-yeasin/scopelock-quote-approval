@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -131,11 +132,28 @@ const STATS: {
   },
 ];
 
-const ACTIONS: { title: string; desc: string; icon: LucideIcon; primary?: boolean }[] = [
-  { title: "New job", desc: "Create a job and start a quote", icon: FolderPlus, primary: true },
-  { title: "New quote", desc: "Build a quote with line items", icon: FilePlus2 },
-  { title: "Change order", desc: "Add a change to an active job", icon: FileDiff },
-  { title: "Invoice", desc: "Generate a PDF invoice", icon: ReceiptText },
+const ACTIONS: {
+  title: string;
+  desc: string;
+  icon: LucideIcon;
+  href: string;
+  primary?: boolean;
+}[] = [
+  {
+    title: "New job",
+    desc: "Create a job and start a quote",
+    icon: FolderPlus,
+    href: "/jobs/new",
+    primary: true,
+  },
+  {
+    title: "New quote",
+    desc: "Build a quote with line items",
+    icon: FilePlus2,
+    href: "/jobs/new",
+  },
+  { title: "Change order", desc: "Add a change to an active job", icon: FileDiff, href: "#" },
+  { title: "Invoice", desc: "Generate a PDF invoice", icon: ReceiptText, href: "#" },
 ];
 
 type StatusKey = "approved" | "awaiting" | "inprogress" | "draft";
@@ -514,10 +532,10 @@ export default function Home() {
                   This month
                   <Icon icon={ChevronDown} className="ico ico-xs" />
                 </button>
-                <button className="btn btn-primary" type="button">
+                <Link href="/jobs/new" className="btn btn-primary">
                   <Icon icon={Plus} className="ico ico-sm" />
                   New job
-                </button>
+                </Link>
               </div>
             </section>
 
@@ -564,9 +582,9 @@ export default function Home() {
 
               <div className="actions">
                 {ACTIONS.map((action) => (
-                  <a
+                  <Link
                     key={action.title}
-                    href="#"
+                    href={action.href}
                     className={`action${action.primary ? " action-primary" : ""}`}
                   >
                     <span className="action-icon">
@@ -579,7 +597,7 @@ export default function Home() {
                     <span className="action-go">
                       <Icon icon={ArrowUpRight} className="ico ico-sm" />
                     </span>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -658,7 +676,11 @@ export default function Home() {
                             <span className="total num">{job.total}</span>
                           </td>
                           <td>
-                            <span className={`status status-${job.status}`}>
+                            <span
+                              className={`status status-${
+                                job.status === "inprogress" ? "progress" : job.status
+                              }`}
+                            >
                               <span className="status-dot" />
                               {STATUS_LABEL[job.status]}
                             </span>
