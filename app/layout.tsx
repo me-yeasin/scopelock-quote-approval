@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Inter_Tight } from "next/font/google";
+import KeyedChildren from "./keyed-children";
 import "./globals.css";
 
 const interTight = Inter_Tight({
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${interTight.variable} ${instrumentSerif.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <KeyedChildren>{children}</KeyedChildren>
+      </body>
     </html>
   );
 }

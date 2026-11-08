@@ -19,6 +19,7 @@ import {
   CircleCheck,
   FileText,
   History,
+  Loader2,
   Lock,
   PenLine,
   Plus,
@@ -584,6 +585,10 @@ export default function NewJobFlow() {
   }
 
   async function handleSave() {
+    // Guard against double submission: the cloud write is in flight, so ignore
+    // any further clicks. Without this, a second click creates a duplicate job.
+    if (serverSaving) return;
+
     const step1Errors = validateStep1();
     const step2Errors = validateStep2();
     const allErrors = { ...step1Errors, ...step2Errors };
@@ -676,16 +681,18 @@ export default function NewJobFlow() {
       /* Ignore storage failures. */
     }
     dirtyRef.current = false;
-    setDraft(makeInitialDraft());
+    setDraft(EMPTY_DRAFT);
     setErrors({});
     setStep(1);
     setRestored(false);
     setSaved(false);
     setSaveState("idle");
     setSaveError(null);
+    setServerSaving(false);
     setJobRef(null);
     firstStepRender.current = true;
     scrollRef.current?.scrollTo({ top: 0 });
+    window.setTimeout(() => headingRef.current?.focus({ preventScroll: true }), 0);
   }
 
   /* ----------------------------------------------------------------
@@ -705,7 +712,14 @@ export default function NewJobFlow() {
             <ArrowLeft className="ico" aria-hidden="true" />
           </button>
 
-          <Link href="/" className="nj-brand">
+          <Link
+            href="/"
+            className="nj-brand"
+            onClick={(event) => {
+              event.preventDefault();
+              handleExit();
+            }}
+          >
             <span className="brand-mark nj-brand-mark">
               <Lock className="ico" aria-hidden="true" />
             </span>
@@ -725,17 +739,25 @@ export default function NewJobFlow() {
 
         <div className="nj-topbar-right">
           <span className="nj-savestate" aria-live="polite">
-            {saveState === "saved" ? (
+            {saveState === "saving" ? (
+              <>
+                <Loader2 className="ico ico-xs nj-spin" aria-hidden="true" />
+                Saving…
+              </>
+            ) : saveState === "saved" ? (
               <>
                 <Check className="ico ico-xs" aria-hidden="true" />
                 Saved
               </>
-            ) : saveState === "saving" ? (
-              "Saving…"
             ) : null}
           </span>
           {!saved ? (
-            <button type="button" className="btn btn-ghost nj-exit" onClick={handleExit}>
+            <button
+              type="button"
+              className="btn btn-ghost nj-exit"
+              onClick={handleExit}
+              disabled={serverSaving}
+            >
               Save &amp; exit
             </button>
           ) : null}
@@ -792,14 +814,14 @@ export default function NewJobFlow() {
               </div>
 
               <div className="nj-success-actions">
-                <Link href="/" className="btn btn-primary">
+                <button type="button" className="btn btn-primary" onClick={startFresh}>
+                  <Plus className="ico ico-sm" aria-hidden="true" />
+                  New job
+                </button>
+                <Link href="/" className="btn btn-ghost">
                   Back to overview
                   <ArrowRight className="ico ico-sm" aria-hidden="true" />
                 </Link>
-                <button type="button" className="btn btn-ghost" onClick={startFresh}>
-                  <Plus className="ico ico-sm" aria-hidden="true" />
-                  Create another job
-                </button>
               </div>
 
               <p className="nj-success-note">
@@ -1355,15 +1377,34 @@ export default function NewJobFlow() {
                     ) : null}
 
                     <div className="nj-actions">
-                      <button type="button" className="btn btn-ghost" onClick={handleBack}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={handleBack}
+                        disabled={serverSaving}
+                      >
                         <ArrowLeft className="ico ico-sm" aria-hidden="true" />
                         {step === 1 ? "Cancel" : "Back"}
                       </button>
 
                       {step === 3 ? (
-                        <button type="button" className="btn btn-primary" onClick={handleSave}>
-                          Save draft
-                          <Check className="ico ico-sm" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={handleSave}
+                          disabled={serverSaving}
+                        >
+                          {serverSaving ? (
+                            <>
+                              <Loader2 className="ico ico-sm nj-spin" aria-hidden="true" />
+                              Saving…
+                            </>
+                          ) : (
+                            <>
+                              Save draft
+                              <Check className="ico ico-sm" aria-hidden="true" />
+                            </>
+                          )}
                         </button>
                       ) : (
                         <button type="submit" form="new-job-form" className="btn btn-primary">
@@ -1477,12 +1518,25 @@ export default function NewJobFlow() {
               className="nj-mobileback"
               onClick={handleBack}
               aria-label={step === 1 ? "Cancel" : "Back"}
+              disabled={serverSaving}
             >
               <ArrowLeft className="ico" aria-hidden="true" />
             </button>
             {step === 3 ? (
-              <button type="button" className="btn btn-primary" onClick={handleSave}>
-                Save draft
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={serverSaving}
+              >
+                {serverSaving ? (
+                  <>
+                    <Loader2 className="ico ico-sm nj-spin" aria-hidden="true" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save draft"
+                )}
               </button>
             ) : (
               <button type="submit" form="new-job-form" className="btn btn-primary">

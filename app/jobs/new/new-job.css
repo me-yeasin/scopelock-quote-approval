@@ -1082,6 +1082,26 @@
   color: var(--faint);
 }
 
+/* ---------- Loading state ---------- */
+
+.nj-spin { animation: nj-spin 0.7s linear infinite; }
+@keyframes nj-spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn:disabled,
+.nj-mobileback:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  pointer-events: none;
+}
+.btn-primary:disabled {
+  background: linear-gradient(180deg, #2C5E50 0%, #1C4034 100%);
+  border-color: #143429;
+}
+
 /* ---------- Mobile action bar ---------- */
 
 .nj-mobilebar { display: none; }
