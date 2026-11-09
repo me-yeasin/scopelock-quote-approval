@@ -1,89 +1,120 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronRight,
   Clock,
   FileText,
   Plus,
   ReceiptText,
+  RefreshCw,
   X,
 } from "lucide-react";
 import AppShell, { Icon } from "../app-shell";
-import {
-  INVOICE_FILTERS,
-  INVOICE_STATUS_LABEL,
-  dueNote,
-  invoiceProjected,
-  invoiceTotal,
-  type Invoice,
-  type InvoiceStatus,
-} from "../../lib/invoices-types";
-import { INVOICES } from "../../lib/invoices-data";
 import { money } from "../../lib/quotes-types";
 import { useNow } from "../quotes/use-now";
+import { getInvoiceStats, getInvoices, type InvoiceListRow } from "./actions";
 import InvoiceDrawer from "./invoice-drawer";
 import "./invoices.css";
 
 /* ------------------------------------------------------------------
    Invoices — one live invoice per job.
 
-   The list is a statement of account, not a document archive: every row
-   reads the job's *current* total, so an approved change order moves the
-   figure here without anyone issuing anything.
+   The list is a statement of account, not an archive. Every total is
+   derived server-side from the approved quote plus approved change orders,
+   so approving a change moves these figures with no invoice being "issued"
+   again.
    ------------------------------------------------------------------ */
 
-const SKELETON_ROWS = 5;
+type Filter = "all" | "outstanding" | "overdue" | "paid" | "draft" | "void";
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "outstanding", label: "Outstanding" },
+  { id: "overdue", label: "Overdue" },
+  { id: "paid", label: "Paid" },
+  { id: "draft", label: "Draft" },
+  { id: "void", label: "Void" },
+];
+
+const SKELETON_ROWS = 4;
+
+function formatDay(iso: string) {
+  const d = new Date(`${iso}T00:00:00.000Z`);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+function dueLabel(row: InvoiceListRow) {
+  if (row.status === "paid") return { tone: "ok", text: "Paid" };
+  if (row.status === "void") return { tone: "void", text: "Void" };
+  if (row.status === "draft") return { tone: "calm", text: "Not sent" };
+  if (row.daysOverdue > 0) {
+    return {
+      tone: "danger",
+      text: `${row.daysOverdue} ${row.daysOverdue === 1 ? "day" : "days"} overdue`,
+    };
+  }
+  return { tone: "calm", text: "Due" };
+}
+
 export default function InvoicesPage() {
-  const [invoices] = useState<Invoice[]>(INVOICES);
-  const loading = false;
-  const [filter, setFilter] = useState<InvoiceStatus | "all">("all");
+  const [rows, setRows] = useState<InvoiceListRow[]>([]);
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof getInvoiceStats>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const now = useNow();
 
+  const refresh = useCallback(async () => {
+    try {
+      const [list, summary] = await Promise.all([getInvoices(), getInvoiceStats()]);
+      setRows(list);
+      setStats(summary);
+      setLoadError(null);
+    } catch {
+      setLoadError("Could not load invoices. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return invoices.filter((invoice) => {
-      const matchesFilter = filter === "all" || invoice.status === filter;
+    return rows.filter((row) => {
+      const matchesFilter =
+        filter === "all"
+          ? true
+          : filter === "outstanding"
+            ? row.status === "issued"
+            : filter === "overdue"
+              ? row.status === "issued" && row.daysOverdue > 0
+              : row.status === filter;
+
       const matchesQuery =
         !needle ||
-        `${invoice.id} ${invoice.jobTitle} ${invoice.jobReference} ${invoice.customer} ${invoice.city} ${INVOICE_STATUS_LABEL[invoice.status]}`
+        `${row.reference} ${row.jobTitle} ${row.jobReference} ${row.customer} ${row.city} ${row.status}`
           .toLowerCase()
           .includes(needle);
+
       return matchesFilter && matchesQuery;
     });
-  }, [invoices, filter, query]);
+  }, [rows, filter, query]);
 
-  const stats = useMemo(() => {
-    const outstanding = invoices.filter((i) => i.status === "issued");
-    const paid = invoices.filter((i) => i.status === "paid");
-    const drafts = invoices.filter((i) => i.status === "draft");
-
-    return {
-      outstanding,
-      paid,
-      drafts,
-      outstandingValue: outstanding.reduce((sum, i) => sum + invoiceTotal(i), 0),
-      paidValue: paid.reduce((sum, i) => sum + invoiceTotal(i), 0),
-      // Money that would join an invoice if pending changes were approved.
-      pendingValue: invoices.reduce((sum, i) => sum + i.pendingChangesCents, 0),
-    };
-  }, [invoices]);
-
-  const selected = invoices.find((i) => i.id === selectedId) ?? null;
-
-  const statusClass = (s: InvoiceStatus) => (s === "issued" ? "sent" : s);
+  const filteredTotal = useMemo(
+    () => visible.reduce((sum, row) => sum + row.totalCents, 0),
+    [visible],
+  );
 
   return (
     <AppShell
@@ -102,8 +133,8 @@ export default function InvoicesPage() {
             </p>
             <h1>Invoices</h1>
             <p className="lede">
-              One live invoice per job. It always shows the agreed quote plus every
-              approved change — so what you bill can never drift from the work.
+              One live invoice per job. It always shows the approved quote plus every
+              approved change, so what you bill can never drift from the work.
             </p>
           </div>
 
@@ -116,7 +147,7 @@ export default function InvoicesPage() {
         </section>
 
         {/* ---------- Stat strip ---------- */}
-        <section className="q-stats" aria-label="Invoice overview">
+        <section className="q-stats" aria-label="Invoice overview" aria-busy={loading}>
           <article className="q-stat">
             <div className="q-stat-top">
               <span className="q-stat-ico">
@@ -125,16 +156,48 @@ export default function InvoicesPage() {
               Outstanding
             </div>
             <div className="q-stat-value">
-              {loading ? (
+              {loading || !stats ? (
                 <span className="sk sk-count" aria-hidden="true" />
               ) : (
-                money(stats.outstandingValue, "GBP")
+                money(stats.outstandingCents, "GBP")
               )}
             </div>
             <div className="q-stat-note">
-              {loading
-                ? "Loading…"
-                : `${stats.outstanding.length} ${stats.outstanding.length === 1 ? "invoice" : "invoices"} awaiting payment`}
+              {loading || !stats ? (
+                "Loading…"
+              ) : (
+                <>
+                  {stats.outstandingCount}{" "}
+                  {stats.outstandingCount === 1 ? "invoice" : "invoices"} awaiting payment
+                </>
+              )}
+            </div>
+          </article>
+
+          <article className="q-stat">
+            <div className="q-stat-top">
+              <span className="q-stat-ico">
+                <Icon icon={AlertTriangle} className="ico ico-xs" />
+              </span>
+              Overdue
+            </div>
+            <div className="q-stat-value">
+              {loading || !stats ? (
+                <span className="sk sk-count" aria-hidden="true" />
+              ) : (
+                money(stats.overdueCents, "GBP")
+              )}
+            </div>
+            <div className="q-stat-note">
+              {loading || !stats ? (
+                "Loading…"
+              ) : stats.overdueCount > 0 ? (
+                <>
+                  <span className="danger">{stats.overdueCount} past due</span> — chase these
+                </>
+              ) : (
+                "Nothing past its due date"
+              )}
             </div>
           </article>
 
@@ -146,18 +209,18 @@ export default function InvoicesPage() {
               Paid
             </div>
             <div className="q-stat-value">
-              {loading ? (
+              {loading || !stats ? (
                 <span className="sk sk-count" aria-hidden="true" />
               ) : (
-                money(stats.paidValue, "GBP")
+                money(stats.paidCents, "GBP")
               )}
             </div>
             <div className="q-stat-note">
-              {loading ? (
+              {loading || !stats ? (
                 "Loading…"
               ) : (
                 <>
-                  <span className="up">{stats.paid.length} settled</span> and closed
+                  <span className="up">{stats.paidCount} settled</span> and closed
                 </>
               )}
             </div>
@@ -171,42 +234,13 @@ export default function InvoicesPage() {
               Not yet approved
             </div>
             <div className="q-stat-value">
-              {loading ? (
+              {loading || !stats ? (
                 <span className="sk sk-count" aria-hidden="true" />
               ) : (
-                money(stats.pendingValue, "GBP")
+                money(stats.pendingCents, "GBP")
               )}
             </div>
-            <div className="q-stat-note">
-              pending changes — never billed until agreed
-            </div>
-          </article>
-
-          <article className="q-stat">
-            <div className="q-stat-top">
-              <span className="q-stat-ico">
-                <Icon icon={FileText} className="ico ico-xs" />
-              </span>
-              Drafts
-            </div>
-            <div className="q-stat-value">
-              {loading ? (
-                <span className="sk sk-count" aria-hidden="true" />
-              ) : (
-                stats.drafts.length
-              )}
-            </div>
-            <div className="q-stat-note">
-              {loading ? (
-                "Loading…"
-              ) : stats.drafts.length > 0 ? (
-                <>
-                  <span className="warn">Not sent</span> — customers cannot see these
-                </>
-              ) : (
-                "Nothing waiting to be sent"
-              )}
-            </div>
+            <div className="q-stat-note">pending changes — never billed until agreed</div>
           </article>
         </section>
 
@@ -216,13 +250,13 @@ export default function InvoicesPage() {
             <div className="panel-title-wrap">
               <h2>All invoices</h2>
               <span className="count">
-                {loading ? <span className="sk sk-count" aria-hidden="true" /> : invoices.length}
+                {loading ? <span className="sk sk-count" aria-hidden="true" /> : rows.length}
               </span>
             </div>
 
             <div className="panel-tools">
               <div className="segmented" role="group" aria-label="Filter invoices">
-                {INVOICE_FILTERS.map((option) => (
+                {FILTERS.map((option) => (
                   <button
                     key={option.id}
                     className={`seg${filter === option.id ? " is-active" : ""}`}
@@ -236,6 +270,17 @@ export default function InvoicesPage() {
               </div>
             </div>
           </div>
+
+          {loadError ? (
+            <div className="inline-error" role="alert">
+              <Icon icon={AlertTriangle} className="ico ico-sm" />
+              <span>{loadError}</span>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refresh()}>
+                <Icon icon={RefreshCw} className="ico ico-sm" />
+                Retry
+              </button>
+            </div>
+          ) : null}
 
           <div className="table-wrap">
             <table className="q-table iv-table">
@@ -293,19 +338,19 @@ export default function InvoicesPage() {
                           <Icon icon={ReceiptText} className="ico" />
                         </span>
                         <h3>
-                          {invoices.length === 0
+                          {rows.length === 0
                             ? "No invoices yet"
                             : "Nothing matches this filter"}
                         </h3>
                         <p>
-                          {invoices.length === 0
-                            ? "Every job gets one live invoice. Approve a quote and it appears here, ready to send."
+                          {rows.length === 0
+                            ? "Every job gets one live invoice. Approve a quote and you can bill it here."
                             : "Try a different status, or clear the search to see every invoice."}
                         </p>
-                        {invoices.length === 0 ? (
-                          <Link href="/jobs/new" className="btn btn-primary btn-sm">
+                        {rows.length === 0 ? (
+                          <Link href="/invoices/new" className="btn btn-primary btn-sm">
                             <Icon icon={Plus} className="ico ico-sm" />
-                            Create a job
+                            New invoice
                           </Link>
                         ) : (
                           <button
@@ -324,29 +369,32 @@ export default function InvoicesPage() {
                     </td>
                   </tr>
                 ) : (
-                  visible.map((invoice) => {
-                    const due = dueNote(invoice, now);
+                  visible.map((row) => {
+                    const due = dueLabel(row);
                     return (
                       <tr
-                        key={invoice.id}
+                        key={row.reference}
                         tabIndex={0}
-                        onClick={() => setSelectedId(invoice.id)}
+                        onClick={() => setSelected(row.reference)}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            setSelectedId(invoice.id);
+                            setSelected(row.reference);
                           }
                         }}
                       >
                         <td>
                           <div className="q-cell-main">
-                            <span className="q-title">{invoice.id}</span>
+                            <span className="q-title">{row.reference}</span>
                             <span className="q-sub">
-                              {invoice.jobTitle}
-                              {invoice.pendingChangesCents > 0 ? (
+                              {row.jobTitle}
+                              {row.pendingCents !== 0 ? (
                                 <>
                                   <span className="sep-dot" />
-                                  <span className="iv-live-dot" title="Live — pending changes exist">
+                                  <span
+                                    className="iv-live-dot"
+                                    title="Pending changes — not billed"
+                                  >
                                     live
                                   </span>
                                 </>
@@ -355,27 +403,27 @@ export default function InvoicesPage() {
                           </div>
                         </td>
                         <td>
-                          <span className="iv-job">{invoice.jobReference}</span>
+                          <span className="iv-job">{row.jobReference}</span>
                         </td>
-                        <td>{invoice.customer}</td>
+                        <td>{row.customer}</td>
                         <td className="t-right">
-                          <span className="iv-num">{money(invoiceTotal(invoice), invoice.currency)}</span>
-                          {invoice.pendingChangesCents > 0 ? (
+                          <span className="iv-num">{money(row.totalCents, row.currency)}</span>
+                          {row.pendingCents !== 0 ? (
                             <span className="iv-project">
-                              {money(invoiceProjected(invoice), invoice.currency)} if approved
+                              {money(row.totalCents + row.pendingCents, row.currency)} if approved
                             </span>
                           ) : null}
                         </td>
                         <td>
-                          <span className={`status status-${statusClass(invoice.status)}`}>
+                          <span className={`status status-${statusClass(row.status)}`}>
                             <span className="status-dot" />
-                            {INVOICE_STATUS_LABEL[invoice.status]}
+                            {statusWord(row.status)}
                           </span>
                         </td>
                         <td>
-                          <span className={`q-expiry ${due?.tone ?? "calm"}`} title={due?.text ?? ""}>
-                            {formatDate(invoice.dueAt)}
-                            {due ? ` · ${due.text}` : ""}
+                          <span className={`q-expiry ${due.tone}`}>
+                            {formatDay(row.dueAt)}
+                            {due.text !== "Due" ? ` · ${due.text}` : ""}
                           </span>
                         </td>
                         <td className="t-right">
@@ -391,10 +439,11 @@ export default function InvoicesPage() {
 
           <div className="panel-foot">
             <span className="foot-note">
-              Showing {visible.length} of {invoices.length} invoices
+              Showing {visible.length} of {rows.length} invoices
+              {visible.length > 0 ? ` · ${money(filteredTotal, "GBP")} in view` : ""}
             </span>
             <span className="q-toolbar-note">
-              Live — approving a change updates the invoice automatically
+              Totals are recalculated live — approving a change updates the invoice
             </span>
           </div>
         </section>
@@ -402,11 +451,24 @@ export default function InvoicesPage() {
 
       {selected ? (
         <InvoiceDrawer
-          key={selected.id}
-          invoice={selected}
-          onClose={() => setSelectedId(null)}
+          key={selected}
+          reference={selected}
+          onClose={() => setSelected(null)}
+          onChanged={() => void refresh()}
         />
       ) : null}
     </AppShell>
   );
+}
+
+function statusClass(status: InvoiceListRow["status"]) {
+  if (status === "issued") return "sent";
+  return status;
+}
+
+function statusWord(status: InvoiceListRow["status"]) {
+  if (status === "issued") return "Issued";
+  if (status === "paid") return "Paid";
+  if (status === "void") return "Void";
+  return "Draft";
 }

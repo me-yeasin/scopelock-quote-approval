@@ -1,44 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Building2,
+  Ban,
   Check,
   CheckCircle2,
   Download,
   FileText,
-  Mail,
   RefreshCw,
+  Send,
   X,
 } from "lucide-react";
 import { Icon } from "../app-shell";
-import {
-  INVOICE_STATUS_LABEL,
-  dueNote,
-  invoiceLineGroups,
-  invoiceLineTotal,
-  invoiceProjected,
-  invoiceTotal,
-  type Invoice,
-} from "../../lib/invoices-types";
 import { money } from "../../lib/quotes-types";
-import { useNow } from "../quotes/use-now";
+import {
+  canIssue,
+  canMarkPaid,
+  canVoid,
+  type DerivedInvoice,
+} from "../../lib/invoices";
+import {
+  getInvoice,
+  issueInvoice,
+  markInvoicePaid,
+  recordInvoiceExport,
+  voidInvoice,
+} from "./actions";
 
 /* ------------------------------------------------------------------
-   The live invoice, displayed as the document it becomes.
+   The live invoice.
 
-   Body is grouped by origin — agreed quote first, then approved changes —
+   Body is grouped by origin — the agreed quote, then approved changes —
    because that is the question a customer actually asks: "why is this more
-   than what I agreed?" The changes block sits directly under the quote
-   lines so the two can be compared without hunting.
-
-   Pending changes are shown in a separate, clearly non-billable block.
+   than I agreed?". Pending changes sit in their own block and are never
+   counted in the total.
    ------------------------------------------------------------------ */
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
+function formatDay(iso: string) {
+  const d = new Date(`${iso}T00:00:00.000Z`);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-GB", {
     day: "numeric",
@@ -47,30 +49,64 @@ function formatDate(iso: string) {
   });
 }
 
-function signed(cents: number, currency: "GBP" | "EUR") {
-  if (cents === 0) return money(0, currency);
+function signed(cents: number, currency: string) {
+  if (cents === 0) return money(0, currency as "GBP" | "EUR");
   const abs = Math.abs(cents);
-  return cents > 0 ? `+${money(abs, currency)}` : `−${money(abs, currency)}`;
+  const formatted = money(abs, currency as "GBP" | "EUR");
+  return cents > 0 ? `+${formatted}` : `−${formatted}`;
+}
+
+function dueSummary(invoice: DerivedInvoice) {
+  if (invoice.status === "paid") return "Paid";
+  if (invoice.status === "void") return "Void";
+  if (invoice.status === "draft") return "Not sent";
+
+  const due = Date.parse(`${invoice.dueAt}T00:00:00.000Z`);
+  const today = Date.parse(
+    `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
+  );
+  const days = Math.round((due - today) / 86_400_000);
+
+  if (days < 0) return `${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} overdue`;
+  if (days === 0) return "Due today";
+  return `Due in ${days} ${days === 1 ? "day" : "days"}`;
 }
 
 export default function InvoiceDrawer({
-  invoice,
+  reference,
   onClose,
+  onChanged,
 }: {
-  invoice: Invoice;
+  reference: string;
   onClose: () => void;
+  onChanged: () => void;
 }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const [copied, setCopied] = useState(false);
+  const [invoice, setInvoice] = useState<DerivedInvoice | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const now = useNow();
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  const total = invoiceTotal(invoice);
-  const projected = invoiceProjected(invoice);
-  const groups = invoiceLineGroups(invoice);
-  const due = dueNote(invoice, now);
-  const isSettled = invoice.status === "paid" || invoice.status === "void";
+  const load = useCallback(async () => {
+    try {
+      const fresh = await getInvoice(reference);
+      if (!fresh) {
+        setError("That invoice no longer exists.");
+      } else {
+        setInvoice(fresh);
+        setError(null);
+      }
+    } catch {
+      setError("Could not load this invoice.");
+    } finally {
+      setLoading(false);
+    }
+  }, [reference]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -81,14 +117,51 @@ export default function InvoiceDrawer({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleExport = async () => {
-    if (exporting) return;
-    setExporting(true);
-    // Not wired yet: this is the layout pass.
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    setExporting(false);
-    setActionError("PDF export is not connected yet.");
+  /** Run a mutation, then re-read the derived invoice so the UI matches the DB. */
+  const run = async (label: string, action: () => Promise<{ ok: boolean; error?: string }>) => {
+    if (pending) return;
+    setPending(label);
+    setError(null);
+    try {
+      const result = await action();
+      if (!result.ok) {
+        setError(result.error ?? "That did not work.");
+      } else {
+        await load();
+        onChanged();
+      }
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setPending(null);
+    }
   };
+
+  const handleExport = async () => {
+    if (exporting || !invoice) return;
+    setExporting(true);
+    try {
+      // The PDF itself is rendered client-side from this same data; recording
+      // the export is what lets us warn when the live total later moves.
+      await recordInvoiceExport(reference);
+      await load();
+      onChanged();
+      window.print();
+    } catch {
+      setError("Could not prepare the PDF.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const groups = invoice
+    ? {
+        quote: invoice.lines.filter((line) => line.source === "quote"),
+        changes: invoice.lines.filter((line) => line.source === "change"),
+      }
+    : { quote: [], changes: [] };
+
+  const busy = pending !== null;
 
   return (
     <>
@@ -97,22 +170,26 @@ export default function InvoiceDrawer({
         className="job-drawer is-open q-drawer iv-drawer"
         role="dialog"
         aria-modal="true"
-        aria-label={`Invoice ${invoice.id}`}
+        aria-label={`Invoice ${reference}`}
       >
         <header className="q-drawer-head">
           <div style={{ minWidth: 0 }}>
-            <p className="drawer-eyebrow">Invoice {invoice.id}</p>
-            <h2 className="q-drawer-title">{invoice.jobTitle}</h2>
-            <div className="q-drawer-meta">
-              <span className={`status status-${invoice.status === "issued" ? "sent" : invoice.status}`}>
-                <span className="status-dot" />
-                {INVOICE_STATUS_LABEL[invoice.status]}
-              </span>
-              <span className="ch-dot" />
-              <span>{invoice.jobReference}</span>
-              <span className="ch-dot" />
-              <span>{invoice.customer}</span>
-            </div>
+            <p className="drawer-eyebrow">Invoice {reference}</p>
+            <h2 className="q-drawer-title">
+              {loading ? "Loading…" : (invoice?.jobTitle ?? "Invoice")}
+            </h2>
+            {invoice ? (
+              <div className="q-drawer-meta">
+                <span className={`status status-${invoice.status === "issued" ? "sent" : invoice.status}`}>
+                  <span className="status-dot" />
+                  {statusWord(invoice.status)}
+                </span>
+                <span className="ch-dot" />
+                <span>{invoice.jobReference}</span>
+                <span className="ch-dot" />
+                <span>{invoice.customer.name}</span>
+              </div>
+            ) : null}
           </div>
           <div className="q-drawer-actions">
             <button
@@ -128,237 +205,306 @@ export default function InvoiceDrawer({
         </header>
 
         <div className="drawer-body">
-          {/* ---------------- Live banner ---------------- */}
-          <section className="q-section">
-            <div className="iv-live">
-              <span className="iv-live-icon" aria-hidden="true">
-                <Icon icon={RefreshCw} className="ico ico-sm" />
-              </span>
-              <div>
-                <strong>This invoice is live</strong>
-                <p>
-                  It always shows the agreed quote plus every approved change.
-                  {invoice.pendingChangesCents > 0
-                    ? " Approving a pending change updates it automatically."
-                    : " Approve a change and the total moves here on its own."}
-                </p>
-              </div>
+          {loading ? (
+            <div className="iv-loading" aria-busy="true">
+              <span className="sk sk-block" />
+              <span className="sk sk-block" />
+              <span className="sk sk-block" />
             </div>
-
-            {actionError ? (
-              <div className="drawer-error" role="alert">
-                <Icon icon={X} className="ico ico-sm" />
-                {actionError}
-              </div>
-            ) : null}
-          </section>
-
-          {/* ---------------- The document ---------------- */}
-          <section className="q-section">
-            <div className="iv-doc">
-              {/* Bill from / bill to */}
-              <div className="iv-doc-head">
-                <div className="iv-party">
-                  <p className="iv-party-label">From</p>
-                  <p className="iv-party-name">{invoice.business.name}</p>
-                  <p className="iv-party-line">{invoice.business.address}</p>
-                  <p className="iv-party-line">{invoice.business.email}</p>
-                  <p className="iv-party-line">{invoice.business.phone}</p>
-                  {invoice.business.vatNumber ? (
-                    <p className="iv-party-line">VAT {invoice.business.vatNumber}</p>
-                  ) : null}
+          ) : !invoice ? (
+            <div className="drawer-error" role="alert">
+              <Icon icon={AlertTriangle} className="ico ico-sm" />
+              {error ?? "This invoice could not be loaded."}
+            </div>
+          ) : (
+            <>
+              {error ? (
+                <div className="drawer-error" role="alert">
+                  <Icon icon={AlertTriangle} className="ico ico-sm" />
+                  {error}
                 </div>
-                <div className="iv-party iv-party-right">
-                  <p className="iv-party-label">Bill to</p>
-                  <p className="iv-party-name">{invoice.customer}</p>
-                  <p className="iv-party-line">{invoice.customerEmail}</p>
-                  <p className="iv-party-line">{invoice.city}</p>
-                </div>
-              </div>
+              ) : null}
 
-              <div className="iv-doc-meta">
-                <span>
-                  <strong>Issued</strong> {formatDate(invoice.issuedAt)}
-                </span>
-                <span>
-                  <strong>Due</strong> {formatDate(invoice.dueAt)}
-                </span>
-                <span className="iv-doc-status">{due?.text ?? ""}</span>
-              </div>
+              {/* ---------------- Live / stale notice ---------------- */}
+              <section className="q-section">
+                {invoice.staleSinceExport ? (
+                  <div className="iv-stale" role="status">
+                    <span className="iv-live-icon is-warn" aria-hidden="true">
+                      <Icon icon={AlertTriangle} className="ico ico-sm" />
+                    </span>
+                    <div>
+                      <strong>The PDF you sent is out of date</strong>
+                      <p>
+                        It showed {money(invoice.issuedSnapshotCents ?? 0, invoice.currency as "GBP")}.
+                        The live total is now {money(invoice.totalCents, invoice.currency as "GBP")}
+                        {" "}({signed(invoice.driftCents, invoice.currency)}). Export again before
+                        chasing payment.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="iv-live">
+                    <span className="iv-live-icon" aria-hidden="true">
+                      <Icon icon={RefreshCw} className="ico ico-sm" />
+                    </span>
+                    <div>
+                      <strong>This invoice is live</strong>
+                      <p>
+                        {invoice.pendingChangesCents !== 0
+                          ? "Approving a pending change updates this total automatically."
+                          : "It always shows the approved quote plus every approved change."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </section>
 
-              {/* ---- Agreed quote ---- */}
-              <div className="iv-group">
-                <div className="iv-group-head">
-                  <span>Agreed quote</span>
-                  <span className="iv-group-total">
-                    {money(invoice.baselineCents, invoice.currency)}
-                  </span>
-                </div>
-                {groups.quote.map((line) => {
-                  const amount = invoiceLineTotal(line);
-                  return (
-                    <div className="iv-row" key={line.id}>
-                      <div className="iv-row-main">
-                        <span className="iv-row-desc">{line.description}</span>
-                        {line.quantity !== 1 ? (
-                          <span className="iv-row-qty">
-                            {line.quantity} × {money(line.unitPriceCents, invoice.currency)}
-                          </span>
-                        ) : null}
-                      </div>
-                      <span className={`iv-row-amount${amount < 0 ? " ch-neg" : ""}`}>
-                        {money(amount, invoice.currency)}
+              {/* ---------------- The document ---------------- */}
+              <section className="q-section">
+                <div className="iv-doc">
+                  <div className="iv-doc-head">
+                    <div className="iv-party">
+                      <p className="iv-party-label">From</p>
+                      <p className="iv-party-name">{invoice.business.name}</p>
+                      {invoice.business.address ? (
+                        <p className="iv-party-line">{invoice.business.address}</p>
+                      ) : null}
+                      {invoice.business.email ? (
+                        <p className="iv-party-line">{invoice.business.email}</p>
+                      ) : null}
+                      {invoice.business.phone ? (
+                        <p className="iv-party-line">{invoice.business.phone}</p>
+                      ) : null}
+                      {invoice.business.vatNumber ? (
+                        <p className="iv-party-line">VAT {invoice.business.vatNumber}</p>
+                      ) : null}
+                    </div>
+                    <div className="iv-party iv-party-right">
+                      <p className="iv-party-label">Bill to</p>
+                      <p className="iv-party-name">{invoice.customer.name}</p>
+                      {invoice.customer.email ? (
+                        <p className="iv-party-line">{invoice.customer.email}</p>
+                      ) : null}
+                      {invoice.site.city ? (
+                        <p className="iv-party-line">{invoice.site.city}</p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="iv-doc-meta">
+                    <span>
+                      <strong>Issued</strong> {formatDay(invoice.issuedAt)}
+                    </span>
+                    <span>
+                      <strong>Due</strong> {formatDay(invoice.dueAt)}
+                    </span>
+                    <span className="iv-doc-status">{dueSummary(invoice)}</span>
+                  </div>
+
+                  <div className="iv-group">
+                    <div className="iv-group-head">
+                      <span>Agreed quote · {invoice.quoteReference}</span>
+                      <span className="iv-group-total">
+                        {money(invoice.baselineCents, invoice.currency as "GBP")}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* ---- Approved changes ---- */}
-              {groups.changes.length > 0 ? (
-                <div className="iv-group iv-group-changes">
-                  <div className="iv-group-head">
-                    <span>
-                      <Icon icon={CheckCircle2} className="ico ico-xs" />
-                      Approved changes
-                    </span>
-                    <span
-                      className={`iv-group-total ${invoice.approvedChangesCents < 0 ? "ch-neg" : "ch-pos"}`}
-                    >
-                      {signed(invoice.approvedChangesCents, invoice.currency)}
-                    </span>
-                  </div>
-                  {groups.changes.map((line) => {
-                    const amount = invoiceLineTotal(line);
-                    return (
+                    {groups.quote.map((line) => (
                       <div className="iv-row" key={line.id}>
                         <div className="iv-row-main">
                           <span className="iv-row-desc">{line.description}</span>
-                          {line.changeReference ? (
-                            <span className="iv-row-src">
-                              {line.changeReference}
-                              {line.changeSummary ? ` · ${line.changeSummary}` : ""}
+                          {line.quantity !== 1 ? (
+                            <span className="iv-row-qty">
+                              {line.quantity} ×{" "}
+                              {money(line.unitPriceCents, invoice.currency as "GBP")}
                             </span>
                           ) : null}
                         </div>
-                        <span className={`iv-row-amount${amount < 0 ? " ch-neg" : " ch-pos"}`}>
-                          {signed(amount, invoice.currency)}
+                        <span className="iv-row-amount">
+                          {money(line.totalCents, invoice.currency as "GBP")}
                         </span>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : null}
+                    ))}
+                  </div>
 
-              {/* ---- Total ---- */}
-              <div className="iv-total">
-                <div className="iv-total-row">
-                  <span>Agreed quote</span>
-                  <span>{money(invoice.baselineCents, invoice.currency)}</span>
+                  {groups.changes.length > 0 ? (
+                    <div className="iv-group iv-group-changes">
+                      <div className="iv-group-head">
+                        <span>
+                          <Icon icon={CheckCircle2} className="ico ico-xs" />
+                          Approved changes
+                        </span>
+                        <span
+                          className={`iv-group-total ${invoice.approvedChangesCents < 0 ? "ch-neg" : "ch-pos"}`}
+                        >
+                          {signed(invoice.approvedChangesCents, invoice.currency)}
+                        </span>
+                      </div>
+                      {groups.changes.map((line) => (
+                        <div className="iv-row" key={line.id}>
+                          <div className="iv-row-main">
+                            <span className="iv-row-desc">{line.description}</span>
+                            {line.changeReference ? (
+                              <span className="iv-row-src">{line.changeReference}</span>
+                            ) : null}
+                          </div>
+                          <span
+                            className={`iv-row-amount ${line.totalCents < 0 ? "ch-neg" : "ch-pos"}`}
+                          >
+                            {signed(line.totalCents, invoice.currency)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="iv-total">
+                    <div className="iv-total-row">
+                      <span>Agreed quote</span>
+                      <span>{money(invoice.baselineCents, invoice.currency as "GBP")}</span>
+                    </div>
+                    {invoice.approvedChangesCents !== 0 ? (
+                      <div
+                        className={`iv-total-row ${invoice.approvedChangesCents < 0 ? "is-neg" : "is-pos"}`}
+                      >
+                        <span>
+                          {invoice.approvedChangesCents < 0 ? (
+                            <ArrowDownRight size={13} strokeWidth={2.6} aria-hidden="true" />
+                          ) : (
+                            <ArrowUpRight size={13} strokeWidth={2.6} aria-hidden="true" />
+                          )}{" "}
+                          Approved changes
+                        </span>
+                        <span>{signed(invoice.approvedChangesCents, invoice.currency)}</span>
+                      </div>
+                    ) : null}
+                    <div className="iv-total-final">
+                      <span>{invoice.status === "paid" ? "Paid" : "Total due"}</span>
+                      <span className="iv-total-value">
+                        {money(invoice.totalCents, invoice.currency as "GBP")}
+                      </span>
+                    </div>
+                    {invoice.status === "paid" && invoice.paidAt ? (
+                      <p className="iv-total-note is-ok">
+                        <Icon icon={Check} className="ico ico-xs" />
+                        Paid on {formatDay(invoice.paidAt.slice(0, 10))}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {invoice.pendingChangesCents !== 0 ? (
+                    <div className="iv-pending">
+                      <div className="iv-pending-head">
+                        <Icon icon={FileText} className="ico ico-xs" />
+                        Awaiting approval — not included
+                      </div>
+                      <p>
+                        {money(
+                          invoice.pendingChangesCents,
+                          invoice.currency as "GBP",
+                        )}{" "}
+                        of changes are still with the customer. If approved, this total becomes{" "}
+                        <strong>
+                          {money(invoice.projectedCents, invoice.currency as "GBP")}
+                        </strong>
+                        .
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {invoice.notes ? <p className="iv-doc-notes">{invoice.notes}</p> : null}
                 </div>
-                {invoice.approvedChangesCents !== 0 ? (
-                  <div
-                    className={`iv-total-row ${invoice.approvedChangesCents < 0 ? "is-neg" : "is-pos"}`}
-                  >
+              </section>
+
+              {/* ---------------- Payment details ---------------- */}
+              <section className="q-section">
+                <h3 className="q-section-title">Payment</h3>
+                <div className="iv-context">
+                  <div className="iv-context-row">
+                    <span>Terms</span>
                     <span>
-                      {invoice.approvedChangesCents < 0 ? (
-                        <ArrowDownRight size={13} strokeWidth={2.6} aria-hidden="true" />
-                      ) : (
-                        <ArrowUpRight size={13} strokeWidth={2.6} aria-hidden="true" />
-                      )}{" "}
-                      Approved changes
+                      {invoice.termsDays === 0
+                        ? "Due on receipt"
+                        : `${invoice.termsDays} days`}
                     </span>
-                    <span>{signed(invoice.approvedChangesCents, invoice.currency)}</span>
                   </div>
-                ) : null}
-                <div className="iv-total-final">
-                  <span>{invoice.status === "paid" ? "Paid" : "Total due"}</span>
-                  <span className="iv-total-value">{money(total, invoice.currency)}</span>
-                </div>
-                {invoice.status === "paid" && invoice.paidAt ? (
-                  <p className="iv-total-note is-ok">
-                    <Icon icon={Check} className="ico ico-xs" />
-                    Paid on {formatDate(invoice.paidAt)}
-                  </p>
-                ) : null}
-              </div>
-
-              {/* ---- Pending: shown, explicitly not billed ---- */}
-              {invoice.pendingChangesCents > 0 ? (
-                <div className="iv-pending">
-                  <div className="iv-pending-head">
-                    <Icon icon={FileText} className="ico ico-xs" />
-                    Awaiting approval — not included
+                  <div className="iv-context-row">
+                    <span>Reference</span>
+                    <span>{invoice.reference}</span>
                   </div>
-                  <p>
-                    {money(invoice.pendingChangesCents, invoice.currency)} of changes are
-                    still with the customer. If approved, the total becomes{" "}
-                    <strong>{money(projected, invoice.currency)}</strong>.
-                  </p>
+                  <div className="iv-context-row">
+                    <span>Quote</span>
+                    <span>{invoice.quoteReference}</span>
+                  </div>
                 </div>
-              ) : null}
-
-              {invoice.notes ? <p className="iv-doc-notes">{invoice.notes}</p> : null}
-            </div>
-          </section>
-
-          {/* ---------------- Business details ---------------- */}
-          <section className="q-section">
-            <h3 className="q-section-title">Paid to</h3>
-            <div className="iv-context">
-              <div className="iv-context-row">
-                <span>
-                  <Icon icon={Building2} className="ico ico-xs" /> Account name
-                </span>
-                <span>{invoice.business.name}</span>
-              </div>
-              <div className="iv-context-row">
-                <span>Reference</span>
-                <span>{invoice.id}</span>
-              </div>
-            </div>
-          </section>
+              </section>
+            </>
+          )}
         </div>
 
         <footer className="drawer-foot iv-drawer-foot">
           <button className="btn btn-ghost" type="button" onClick={onClose}>
             Close
           </button>
-          <div className="iv-foot-actions">
-            {!isSettled ? (
+
+          {invoice ? (
+            <div className="iv-foot-actions">
+              {canIssue(invoice.status) ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run("issue", () => issueInvoice(reference))}
+                >
+                  <Icon icon={Send} className="ico ico-sm" />
+                  {pending === "issue" ? "Issuing…" : "Issue invoice"}
+                </button>
+              ) : null}
+
+              {canMarkPaid(invoice.status) ? (
+                <button
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run("paid", () => markInvoicePaid(reference))}
+                >
+                  <Icon icon={CheckCircle2} className="ico ico-sm" />
+                  {pending === "paid" ? "Saving…" : "Mark paid"}
+                </button>
+              ) : null}
+
+              {canVoid(invoice.status) ? (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run("void", () => voidInvoice(reference, "Cancelled"))}
+                >
+                  <Icon icon={Ban} className="ico ico-sm" />
+                  {pending === "void" ? "Voiding…" : "Void"}
+                </button>
+              ) : null}
+
               <button
                 className="btn btn-ghost btn-sm"
                 type="button"
-                disabled={exporting}
-                onClick={() => {
-                  setCopied(false);
-                  setActionError(null);
-                  void navigator.clipboard
-                    ?.writeText(new URL(`/i/${invoice.id}`, window.location.origin).toString())
-                    .then(() => {
-                      setCopied(true);
-                      window.setTimeout(() => setCopied(false), 2000);
-                    })
-                    .catch(() => setCopied(false));
-                }}
+                disabled={exporting || busy}
+                aria-busy={exporting}
+                onClick={() => void handleExport()}
               >
-                <Icon icon={copied ? Check : Mail} className="ico ico-sm" />
-                {copied ? "Link copied" : "Copy link"}
+                <Icon icon={Download} className="ico ico-sm" />
+                {exporting ? "Preparing…" : "Export PDF"}
               </button>
-            ) : null}
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={exporting}
-              aria-busy={exporting}
-              onClick={handleExport}
-            >
-              <Icon icon={Download} className="ico ico-sm" />
-              {exporting ? "Preparing…" : "Export PDF"}
-            </button>
-          </div>
+            </div>
+          ) : null}
         </footer>
       </aside>
     </>
   );
+}
+
+function statusWord(status: DerivedInvoice["status"]) {
+  if (status === "issued") return "Issued";
+  if (status === "paid") return "Paid";
+  if (status === "void") return "Void";
+  return "Draft";
 }

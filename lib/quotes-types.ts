@@ -72,13 +72,32 @@ export type Quote = {
 
 const SYMBOL: Record<Quote["currency"], string> = { GBP: "£", EUR: "€" };
 
-export function money(cents: number, currency: Quote["currency"]) {
+/**
+ * Format integer minor units as money.
+ *
+ * GBP and EUR have hand-picked symbols for the tightest typography in
+ * tables. Anything else falls back to the platform's formatter, so an
+ * invoice in an unexpected currency still renders sensibly instead of
+ * printing "undefined".
+ */
+export function money(cents: number, currency: Quote["currency"] | string) {
   const value = (Number(cents) || 0) / 100;
   const text = value.toLocaleString("en-GB", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return `${SYMBOL[currency]}${text}`;
+
+  const symbol = SYMBOL[currency as Quote["currency"]];
+  if (symbol) return `${symbol}${text}`;
+
+  try {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: currency || "GBP",
+    }).format(value);
+  } catch {
+    return `${text} ${currency}`.trim();
+  }
 }
 
 export function lineTotal(line: QuoteLine) {
