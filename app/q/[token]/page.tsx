@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
-import { Check, Lock, ShieldCheck, X } from "lucide-react";
-import {
-  QUOTE_STATUS_LABEL,
-  lineTotal,
-  money,
-  quoteSubtotal,
-  type Quote,
-} from "@/lib/quotes-types";
+import { notFound } from "next/navigation";
+import { Check, Lock, LinkIcon, ShieldCheck, X } from "lucide-react";
+import { QUOTE_STATUS_LABEL, money } from "@/lib/quotes-types";
+import { getPublicQuote, markQuoteViewed } from "./public-quote";
+import CustomerActions from "./customer-actions-client";
 import "./customer-quote.css";
 
 export const metadata: Metadata = {
@@ -18,21 +15,11 @@ export const metadata: Metadata = {
 /**
  * A token page is always rendered per request: the token decides which
  * quote a stranger is allowed to see, so there is nothing safe to cache
- * or prerender ahead of time. `instant: false` tells Next.js this route
- * is allowed to block on its params instead of streaming a placeholder
- * that could never be correct.
+ * or prerender ahead of time.
  */
 export const instant = false;
 
-/* ------------------------------------------------------------------
-   The customer-facing quote. UI only — no actions are wired yet.
-
-   This is the page most visitors will ever see, and most will open it on
-   a mid-range phone over a weak connection. So: one column, no client
-   JavaScript, no fixed heights, and prices that align on a single axis.
-   ------------------------------------------------------------------ */
-
-const TONE: Record<Quote["status"], string> = {
+const TONE: Record<string, string> = {
   draft: "sent",
   sent: "sent",
   approved: "approved",
@@ -50,59 +37,74 @@ function formatDate(iso: string) {
   });
 }
 
-/* Sample content until the backend is connected. Shaped exactly like the
-   real view model so swapping in a database read is a one-line change. */
-const SAMPLE: Quote = {
-  id: "Q-2026-0001",
-  jobReference: "J-2026-7709",
-  title: "Bathroom refit — pipework and fixtures",
-  customer: "A Real Name",
-  customerInitials: "AR",
-  customerEmail: "",
-  customerPhone: "",
-  city: "Bristol",
-  currency: "GBP",
-  status: "sent",
-  lines: [
-    {
-      id: "l1",
-      description: "Remove existing suite and cap services",
-      quantity: 1,
-      unitPriceCents: 18000,
-    },
-    {
-      id: "l2",
-      description:
-        "First-fix pipework for basin, WC and shower — 15mm copper to 22mm stack",
-      quantity: 1,
-      unitPriceCents: 42500,
-    },
-    {
-      id: "l3",
-      description: "Fit client-supplied basin, WC and thermostatic shower valve",
-      quantity: 2,
-      unitPriceCents: 21500,
-    },
-  ],
-  approvedChangesCents: 0,
-  pendingChangesCents: 0,
-  notes:
-    "Price assumes the floor is already up and the stopcock is accessible. Any hidden pipe damage found after the floor is lifted will be quoted separately before work continues — nothing is added to this total without your written approval.",
-  issuedAt: "2026-11-05T09:00:00.000Z",
-  validUntil: "2026-12-05T09:00:00.000Z",
-  activity: [],
-};
+/** Shared shell for the "can't show this" states. */
+function Unavailable({
+  title,
+  body,
+  icon,
+}: {
+  title: string;
+  body: string;
+  icon: "link" | "lock";
+}) {
+  return (
+    <main className="cq">
+      <div className="cq-empty">
+        <div className="cq-empty-inner">
+          <span className="cq-empty-icon" aria-hidden="true">
+            {icon === "link" ? (
+              <LinkIcon size={20} strokeWidth={2.2} />
+            ) : (
+              <Lock size={20} strokeWidth={2.2} />
+            )}
+          </span>
+          <h1>{title}</h1>
+          <p>{body}</p>
+        </div>
+      </div>
+    </main>
+  );
+}
 
-export default async function CustomerQuotePage(
-  props: PageProps<"/q/[token]">,
-) {
-  // Consumed so the token is validated once the lookup exists; unused for now.
-  await props.params;
+export default async function CustomerQuotePage(props: PageProps<"/q/[token]">) {
+  const { token } = await props.params;
+  const result = await getPublicQuote(token);
 
-  const quote = SAMPLE;
-  const subtotal = quoteSubtotal(quote);
+  if (!result.ok) {
+    // A malformed or unknown token is a 404: there is nothing here, and
+    // saying more would hint at which part was wrong.
+    if (result.reason === "not-found") notFound();
+
+    if (result.reason === "not-sent") {
+      return (
+        <Unavailable
+          icon="lock"
+          title="This quote isn't ready yet"
+          body="Your plumber hasn't sent this quote. If you expected to see it, ask them to share the link again."
+        />
+      );
+    }
+
+    return (
+      <Unavailable
+        icon="link"
+        title="Something went wrong"
+        body="We couldn't load this quote just now. Please try again in a moment."
+      />
+    );
+  }
+
+  const quote = result.quote;
+
+  // Best-effort view tracking. Awaited so the "viewed" entry lands before
+  // the response is sent, but it swallows its own errors.
+  if (quote.status === "sent") await markQuoteViewed(token);
+
+  const subtotal = quote.subtotalCents;
+  const total = subtotal + quote.approvedChangesCents;
   const decided = quote.status === "approved" || quote.status === "rejected";
-  const tone = TONE[quote.status];
+  const expired = quote.status === "expired";
+  const tone = TONE[quote.status] ?? "sent";
 
   return (
     <main className="cq">
@@ -122,10 +124,10 @@ export default async function CustomerQuotePage(
 
         <article className="cq-card">
           <div className="cq-head">
-            <p className="cq-eyebrow">Quote {quote.id}</p>
+            <p className="cq-eyebrow">Quote {quote.reference}</p>
             <h1 className="cq-title">{quote.title}</h1>
             <p className="cq-meta">
-              Prepared for <strong>{quote.customer}</strong>
+              Prepared for <strong>{quote.customerName}</strong>
             </p>
           </div>
 
@@ -140,7 +142,7 @@ export default async function CustomerQuotePage(
             </div>
             <div className="cq-fact">
               <dt>Site</dt>
-              <dd>{quote.city}</dd>
+              <dd>{quote.city || "—"}</dd>
             </div>
             <div className="cq-fact">
               <dt>Job</dt>
@@ -149,12 +151,15 @@ export default async function CustomerQuotePage(
           </dl>
 
           <ul className="cq-lines">
-            {quote.lines.map((line) => (
-              <li className="cq-line" key={line.id}>
+            {quote.lines.map((line, index) => (
+              <li className="cq-line" key={`${line.description}-${index}`}>
                 <div className="cq-line-top">
                   <span className="cq-line-desc">{line.description}</span>
                   <span className="cq-line-amount">
-                    {money(lineTotal(line), quote.currency)}
+                    {money(
+                      Math.round(line.quantity * line.unitPriceCents),
+                      quote.currency,
+                    )}
                   </span>
                 </div>
                 {line.quantity !== 1 ? (
@@ -171,19 +176,19 @@ export default async function CustomerQuotePage(
               <span>Subtotal</span>
               <span>{money(subtotal, quote.currency)}</span>
             </div>
-            <div className="cq-total-row">
-              <span>Changes approved so far</span>
-              <span>{money(quote.approvedChangesCents, quote.currency)}</span>
-            </div>
+            {quote.approvedChangesCents > 0 ? (
+              <div className="cq-total-row">
+                <span>Approved changes</span>
+                <span>{money(quote.approvedChangesCents, quote.currency)}</span>
+              </div>
+            ) : null}
             <div className="cq-total-row is-grand">
               <span>Total</span>
-              <span className="cq-total-value">
-                {money(subtotal + quote.approvedChangesCents, quote.currency)}
-              </span>
+              <span className="cq-total-value">{money(total, quote.currency)}</span>
             </div>
             <p className="cq-total-note">
-              Includes VAT where applicable. Pending changes are not billed
-              until you approve them.
+              Includes VAT where applicable. Nothing is added to this total
+              without your approval.
             </p>
           </div>
 
@@ -210,34 +215,40 @@ export default async function CustomerQuotePage(
                     : "You declined this quote"}
                 </strong>
                 <span>
-                  This price is now locked. Any further work is agreed in
-                  writing before it is billed.
+                  {quote.status === "approved"
+                    ? `Approved ${formatDate(quote.decidedAt ?? "")}. This price is now locked.`
+                    : "This quote was declined. Ask your plumber for a revised quote."}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {expired ? (
+            <div className="cq-decided" data-tone="expired">
+              <span className="cq-decided-icon" aria-hidden="true">
+                <ShieldCheck size={18} strokeWidth={2.4} />
+              </span>
+              <div>
+                <strong>This quote has expired</strong>
+                <span>
+                  It was valid until {formatDate(quote.validUntil)}. Ask your
+                  plumber for an updated quote.
                 </span>
               </div>
             </div>
           ) : null}
         </article>
 
-        {!decided ? (
-          <div className="cq-actions">
-            <button className="cq-btn cq-btn--primary" type="button">
-              <ShieldCheck size={18} strokeWidth={2.4} aria-hidden="true" />
-              Approve this quote
-            </button>
-            <button className="cq-btn cq-btn--ghost" type="button">
-              Ask a question instead
-            </button>
-            <p className="cq-actions-note">
-              Approving locks the price at{" "}
-              {money(subtotal + quote.approvedChangesCents, quote.currency)}.
-            </p>
-          </div>
+        {quote.status === "sent" ? (
+          <CustomerActions
+            token={token}
+            currency={quote.currency}
+            totalCents={total}
+          />
         ) : null}
 
         <p className="cq-foot">
-          Sent by <strong>Markham &amp; Sons Plumbing</strong>
-          <br />
-          Questions? Reply to the message this link came from.
+          Questions about this quote? Reply to the message this link came from.
         </p>
       </div>
     </main>

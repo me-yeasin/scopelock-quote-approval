@@ -469,3 +469,122 @@
 @media (prefers-reduced-motion: reduce) {
   .cq-btn { transition: none; }
 }
+
+/* ---------- Decision states ---------- */
+
+.cq-btn--danger {
+  background: var(--red);
+  color: #fff;
+}
+
+.cq-btn--danger:active { background: #9d382f; }
+
+.cq-actions-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cq-reject-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* 16px prevents iOS Safari from zooming the page on focus. */
+.cq-reject-input {
+  width: 100%;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.cq-reject-input:focus-visible {
+  outline: 2px solid var(--pine-700);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.cq-reject-buttons {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.cq-reject-buttons .cq-btn--ghost {
+  width: auto;
+  min-width: 88px;
+  padding: 0 16px;
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+
+.cq-reject-buttons .cq-btn--danger {
+  width: 100%;
+}
+
+/* ---------- Unavailable / error pages ---------- */
+
+.cq-empty {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.cq-empty-inner {
+  max-width: 380px;
+}
+
+.cq-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.cq-empty h1 {
+  margin: 0 0 8px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.25;
+  color: var(--pine-950);
+}
+
+.cq-empty p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+@media (min-width: 560px) {
+  .cq-reject-buttons {
+    grid-template-columns: 1fr auto;
+  }
+
+  .cq-reject-buttons .cq-btn--danger {
+    width: auto;
+    min-width: 200px;
+  }
+}
