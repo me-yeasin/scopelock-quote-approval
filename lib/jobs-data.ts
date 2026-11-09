@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   ReceiptText,
   ScrollText,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -52,7 +51,9 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "/changes" },
       { id: "invoices", label: "Invoices", icon: ReceiptText, countKey: "invoices", href: "/invoices" },
       { id: "audit", label: "Audit log", icon: ScrollText, href: "/audit" },
-      { id: "settings", label: "Settings", icon: Settings, href: "#" },
+      // Hidden until there is a page behind it. A nav item that does
+      // nothing is a dead end; the audit log now covers "Records".
+      // { id: "settings", label: "Settings", icon: Settings, href: "#" },
     ],
   },
 ];
