@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowRight,
   Pencil,
@@ -387,7 +388,7 @@ function JobDrawer({
 /* ------------------------------------------------------------------
    Jobs screen
    ------------------------------------------------------------------ */
-export default function JobsPage() {
+function JobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -397,6 +398,12 @@ export default function JobsPage() {
     null,
   );
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Deep link: /jobs?job=<reference> opens that job's drawer on arrival.
+  // This is what the "Open job" button on a quote uses.
+  const searchParams = useSearchParams();
+  const deepLinkRef = searchParams.get("job");
+  const deepLinkHandled = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -444,6 +451,20 @@ export default function JobsPage() {
   const selectedJob = selected
     ? (jobs.find((job) => (job.objectId ?? job.id) === selected.id) ?? null)
     : null;
+
+  // Once the jobs have loaded, open the job named in the URL — exactly once,
+  // so closing the drawer does not immediately re-open it.
+  useEffect(() => {
+    if (loading || !deepLinkRef) return;
+    if (deepLinkHandled.current === deepLinkRef) return;
+
+    const match = jobs.find((job) => job.id === deepLinkRef || job.objectId === deepLinkRef);
+    deepLinkHandled.current = deepLinkRef;
+
+    if (match) {
+      setSelected({ id: match.objectId ?? match.id, intent: "edit" });
+    }
+  }, [loading, jobs, deepLinkRef]);
 
   // Writes target the stable storage id; the reference is only a fallback for
   // documents that predate it.
@@ -710,5 +731,15 @@ export default function JobsPage() {
         />
       ) : null}
     </AppShell>
+  );
+}
+
+/* `useSearchParams` must sit inside a Suspense boundary so the rest of the
+   page can still be prerendered (see Next.js docs on use-search-params). */
+export default function JobsPage() {
+  return (
+    <Suspense fallback={null}>
+      <JobsScreen />
+    </Suspense>
   );
 }

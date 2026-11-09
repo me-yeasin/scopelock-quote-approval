@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
@@ -59,7 +60,7 @@ export default function QuoteDrawer({
   onChanged: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const now = useNow();
@@ -86,31 +87,46 @@ export default function QuoteDrawer({
   const isLocked = quote.status === "approved";
   const MethodIcon = quote.link ? METHOD_ICON[quote.link.method] : Link2;
 
-  const copyLink = async () => {
-    if (!quote.link) return;
-    const absolute = new URL(quote.link.url, window.location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(absolute);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  /** Send (or resend) the approval link, then refresh the list. */
-  const handleSend = async (method: "email" | "sms" | "copy") => {
-    if (sending) return;
+  /**
+   * One action: get the customer a usable link.
+   *
+   * If the quote has not been sent yet, `sendQuote` issues the single-use
+   * token, records the send on the quote, and flips draft -> sent. We simply
+   * put the resulting link on the clipboard — ScopeLock never delivers the
+   * message itself; the user sends it wherever they like.
+   */
+  const handleCopyLink = async () => {
+    if (copying) return;
     setActionError(null);
-    setSending(true);
-    const result = await sendQuote(quote.id, method);
-    setSending(false);
-    if (!result.ok) {
-      setActionError(result.error);
-      return;
+
+    let url = quote.link?.url;
+
+    // A draft is not "sent" until the link exists, so generate it now.
+    if (!url) {
+      setCopying(true);
+      const result = await sendQuote(quote.id, "copy");
+      setCopying(false);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      url = result.quote.link?.url;
+      // Reflect the new status/link in the list behind the drawer.
+      onChanged();
+      if (!url) {
+        setActionError("The approval link could not be generated. Try again.");
+        return;
+      }
     }
-    onChanged();
-    onClose();
+
+    try {
+      await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be denied (insecure context, permissions).
+      setActionError("Could not copy automatically — select the link above and copy it.");
+    }
   };
 
   return (
@@ -176,61 +192,42 @@ export default function QuoteDrawer({
                   This is now the baseline every change order is measured against.
                 </span>
               </div>
-            ) : quote.link ? (
-              <div className="q-link-card">
-                <div className="q-link-status">
-                  <Icon icon={Clock} className="ico ico-sm" />
-                  Waiting for the customer to decide
-                </div>
-                <div className="q-link-url">
-                  <Icon icon={Link2} className="ico ico-sm" />
-                  <code>{quote.link.url}</code>
-                </div>
-                <div className="q-link-actions">
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    type="button"
-                    disabled={sending}
-                    onClick={copyLink}
-                  >
-                    <Icon icon={copied ? Check : Copy} className="ico ico-sm" />
-                    {copied ? "Copied" : "Copy link"}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    type="button"
-                    disabled={sending}
-                    onClick={() => handleSend(quote.link?.method ?? "copy")}
-                  >
-                    <Icon icon={Send} className="ico ico-sm" />
-                    {sending ? "Sending…" : "Resend"}
-                  </button>
-                </div>
-                <p className="q-link-sent">
-                  <Icon icon={ShieldCheck} className="ico ico-xs" />
-                  Secure link, no account needed · Expires {formatDate(quote.validUntil)}
-                </p>
-              </div>
             ) : (
               <div className="q-link-card">
                 <div className="q-link-status">
-                  <Icon icon={FileText} className="ico ico-sm" />
-                  This quote is still a draft
+                  <Icon icon={copying || quote.link ? Link2 : FileText} className="ico ico-sm" />
+                  {copying
+                    ? "Generating link…"
+                    : quote.link
+                      ? "Link ready — send it however you like"
+                      : "Copy the link and send it to your customer"}
                 </div>
-                <p className="q-total-hint" style={{ margin: 0 }}>
-                  Send it to {quote.customer} for approval to lock the scope and start the job.
-                </p>
+
+                {quote.link ? (
+                  <div className="q-link-url">
+                    <Icon icon={Link2} className="ico ico-sm" />
+                    <code>{quote.link.url}</code>
+                  </div>
+                ) : null}
+
                 <div className="q-link-actions">
                   <button
                     className="btn btn-primary btn-sm"
                     type="button"
-                    disabled={sending}
-                    onClick={() => handleSend("copy")}
+                    disabled={copying}
+                    onClick={handleCopyLink}
                   >
-                    <Icon icon={Send} className="ico ico-sm" />
-                    {sending ? "Sending…" : "Send for approval"}
+                    <Icon icon={copied ? Check : Copy} className="ico ico-sm" />
+                    {copying ? "Preparing…" : copied ? "Link copied" : "Copy link"}
                   </button>
                 </div>
+
+                <p className="q-link-sent">
+                  <Icon icon={ShieldCheck} className="ico ico-xs" />
+                  {quote.link
+                    ? `Secure link, no account needed · Expires ${formatDate(quote.validUntil)}`
+                    : `Approving this quote locks the scope · Expires ${formatDate(quote.validUntil)}`}
+                </p>
               </div>
             )}
           </section>
@@ -361,9 +358,13 @@ export default function QuoteDrawer({
             <button className="btn btn-ghost" type="button" onClick={onClose}>
               Close
             </button>
-            <button className="btn btn-primary" type="button">
+            <Link
+              className="btn btn-primary"
+              href={`/jobs?job=${encodeURIComponent(quote.jobReference)}`}
+              title={`Open job ${quote.jobReference}`}
+            >
               Open job
-            </button>
+            </Link>
           </div>
         </footer>
       </aside>
