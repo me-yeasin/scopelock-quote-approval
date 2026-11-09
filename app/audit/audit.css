@@ -1,0 +1,438 @@
+@import "../quotes/quotes.css";
+
+/* ------------------------------------------------------------------
+   Audit log — a vertical timeline.
+
+   Deliberately the least "tabular" screen in the app: it is read once in a
+   while to answer a question about one job, so scanning beats density. The
+   rail is a flat line, not a decorative gradient, so the coloured markers
+   are the only thing competing for attention.
+   ------------------------------------------------------------------ */
+
+.audit-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Summary ---- */
+.au-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  /* Match the timeline measure so the page has one left and right edge. */
+  max-width: 940px;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+.au-summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.au-summary-value {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.au-summary-value.is-agree {
+  color: var(--green);
+}
+.au-summary-value.is-decline {
+  color: var(--red);
+}
+.au-summary-value.is-moved {
+  color: var(--blue);
+}
+
+.au-summary-label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.au-summary-rule {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+/* ---- Controls ---- */
+.au-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 940px;
+}
+
+/* ---- Timeline ---- */
+.au-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  /* Single-column reading: a full-width row forces the eye across ~1000px
+     between a label and its amount. Capping the measure keeps each event
+     legible while the summary and filters still fill the page. */
+  max-width: 940px;
+}
+
+.au-day-heading {
+  display: flex;
+  padding-left: 2px;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.au-day-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.au-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* ---- One event ---- */
+.au-item {
+  display: grid;
+  grid-template-columns: 52px 34px minmax(0, 1fr);
+  align-items: start;
+  padding: 13px 16px 13px 8px;
+  position: relative;
+}
+
+.au-item + .au-item {
+  border-top: 1px solid var(--line-soft);
+}
+
+.au-item.is-quiet {
+  /* Opening a document is not a decision; keep it present but recessive. */
+  opacity: 0.72;
+}
+
+.au-time {
+  padding-top: 2px;
+  text-align: right;
+  padding-right: 8px;
+}
+
+.au-time time {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The rail: one continuous line per list, drawn per item. */
+.au-marker {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-self: stretch;
+}
+
+.au-marker::before {
+  content: "";
+  position: absolute;
+  top: -13px;
+  bottom: -13px;
+  left: 50%;
+  width: 1px;
+  background: var(--line-soft);
+  transform: translateX(-50%);
+}
+
+.au-item:first-child .au-marker::before {
+  top: 14px;
+}
+
+.au-item:last-child .au-marker::before {
+  bottom: auto;
+  height: 14px;
+}
+
+.au-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* ---- Tones ---- */
+.au-tone-agree .au-dot {
+  background: var(--green-soft);
+  border-color: var(--green-line);
+  color: var(--green);
+}
+
+.au-tone-decline .au-dot {
+  background: var(--red-soft);
+  border-color: #EFD8D4;
+  color: var(--red);
+}
+
+.au-tone-moved .au-dot {
+  background: var(--blue-soft);
+  border-color: var(--blue-line);
+  color: var(--blue);
+}
+
+.au-tone-sent .au-dot {
+  background: var(--paper-2);
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+
+.au-tone-seen .au-dot {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--faint);
+}
+
+.au-tone-created .au-dot {
+  background: var(--paper-2);
+  border-color: var(--line);
+  color: var(--faint);
+}
+
+/* ---- Body ---- */
+.au-body {
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.au-body-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.au-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.au-amount {
+  flex: none;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.au-amount.is-pos {
+  color: var(--green);
+}
+.au-amount.is-neg {
+  color: var(--red);
+}
+
+.au-detail {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* Opening a document is not a decision; keep it present but recessive. */
+.au-item.is-quiet .au-label {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.au-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+/* Fixed-width tabular code so references line up down the column instead of
+   each row starting the next field at a different x position. */
+.au-doc {
+  display: inline-block;
+  /* Fixed width so the job reference and customer below start at the same x
+     on every row. All invoice/quote/change references share this shape. */
+  min-width: 104px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.au-source {
+  color: var(--faint);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.au-job {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Footnote ---- */
+.au-footnote {
+  max-width: 940px;
+  padding: 2px 2px 4px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--faint);
+  text-wrap: pretty;
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 640px) {
+  .au-summary {
+    gap: 12px 16px;
+    padding: 12px 14px;
+  }
+
+  .au-summary-rule {
+    display: none;
+  }
+
+  .au-item {
+    grid-template-columns: 40px 28px minmax(0, 1fr);
+    padding: 12px 12px 12px 4px;
+  }
+
+  .au-time time {
+    font-size: 10px;
+  }
+
+  .au-body-head {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+
+  .au-detail {
+    font-size: 11.5px;
+  }
+
+  .au-controls {
+    gap: 8px;
+  }
+}
+
+/* ---- Job filter ---- */
+.au-job-filter {
+  margin-left: auto;
+}
+
+.au-select {
+  height: 30px;
+  max-width: 260px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236E7C74' stroke-width='1.4' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  text-overflow: ellipsis;
+}
+
+.au-select:focus-visible {
+  outline: 2px solid rgba(23, 80, 63, 0.4);
+  outline-offset: 1px;
+}
+
+/* ---- Skeleton rows ---- */
+.au-item.is-skeleton {
+  grid-template-columns: 52px 34px minmax(0, 1fr);
+  align-items: center;
+  opacity: 1;
+}
+
+.au-item.is-skeleton .au-marker::before {
+  display: none;
+}
+
+.au-item.is-skeleton > div {
+  padding-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---- Truncation notice ---- */
+.au-footnote.is-warn {
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--amber-soft);
+  border: 1px solid var(--amber-line);
+  color: var(--amber);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .au-job-filter {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .au-select {
+    max-width: none;
+    width: 100%;
+  }
+}

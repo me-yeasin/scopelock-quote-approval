@@ -51,7 +51,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "/changes" },
       { id: "invoices", label: "Invoices", icon: ReceiptText, countKey: "invoices", href: "/invoices" },
-      { id: "audit", label: "Audit log", icon: ScrollText, href: "#" },
+      { id: "audit", label: "Audit log", icon: ScrollText, href: "/audit" },
       { id: "settings", label: "Settings", icon: Settings, href: "#" },
     ],
   },
