@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   ArrowDownRight,
@@ -24,8 +24,8 @@ import {
   type ChangeOrder,
   type ChangeOrderStatus,
 } from "../../lib/changes-types";
-import { CHANGE_ORDERS } from "../../lib/changes-data";
 import { money } from "../../lib/quotes-types";
+import { getChanges } from "./actions";
 import ChangeDrawer from "./change-drawer";
 import "./changes.css";
 
@@ -63,13 +63,28 @@ const KIND_TONE: Record<ChangeKind, string> = {
 };
 
 export default function ChangesPage() {
-  // No database yet: the sample list stands in for the query.
-  const [orders] = useState<ChangeOrder[]>(CHANGE_ORDERS);
-  const loading = false;
+  const [orders, setOrders] = useState<ChangeOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ChangeOrderStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    const result = await getChanges();
+    if (result.ok) {
+      setOrders(result.changes);
+      setLoadError(null);
+    } else {
+      setLoadError(result.error);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -133,6 +148,26 @@ export default function ChangesPage() {
             </Link>
           </div>
         </section>
+
+        {loadError ? (
+          <div className="jobs-banner" role="alert">
+            <Icon icon={X} className="ico ico-sm" />
+            <span>
+              Could not load change orders — {loadError}
+              <button
+                className="btn btn-ghost btn-sm"
+                type="button"
+                style={{ marginLeft: 10 }}
+                onClick={() => {
+                  setLoading(true);
+                  void load();
+                }}
+              >
+                Retry
+              </button>
+            </span>
+          </div>
+        ) : null}
 
         {/* ---------- Stat strip ---------- */}
         <section className="q-stats" aria-label="Change order overview">
@@ -430,6 +465,7 @@ export default function ChangesPage() {
           key={selected.id}
           order={selected}
           onClose={() => setSelectedId(null)}
+          onChanged={() => void load()}
         />
       ) : null}
     </AppShell>

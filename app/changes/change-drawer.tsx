@@ -26,6 +26,7 @@ import {
   type ChangeOrderStatus,
 } from "../../lib/changes-types";
 import { money } from "../../lib/quotes-types";
+import { deleteChange, sendChange, withdrawChange } from "./actions";
 
 /* ------------------------------------------------------------------
    The change-order drawer.
@@ -63,15 +64,22 @@ const STATUS_CLASS: Record<ChangeOrderStatus, string> = {
 };
 
 export default function ChangeDrawer({
-  order,
+  order: initialOrder,
   onClose,
+  onChanged,
 }: {
   order: ChangeOrder;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Local copy so a send or decision shows immediately, without waiting
+  // for the list behind the drawer to refetch.
+  const [order, setOrder] = useState<ChangeOrder>(initialOrder);
 
   const net = changeNet(order);
   const credit = changeIsCredit(order);
@@ -79,6 +87,9 @@ export default function ChangeDrawer({
   const isSent = order.status === "sent";
   const isDecided = order.status === "approved" || order.status === "rejected";
   const isDraft = order.status === "draft";
+  // Closed orders accept no further action at all.
+  const isClosed =
+    order.status === "withdrawn" || order.status === "expired" || isDecided;
 
   // Escape closes; focus starts on Close so keyboard users are not trapped.
   useEffect(() => {
@@ -90,21 +101,74 @@ export default function ChangeDrawer({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  /**
+   * Copy the approval link, sending first if needed.
+   *
+   * A draft has no token yet, so this one button both marks the change as
+   * sent and puts the URL on the clipboard — the same contract as the
+   * quote drawer's "Copy link".
+   */
   const handleCopyLink = async () => {
-    if (!order.link?.url) {
-      setActionError("This change order has no link yet — send it first.");
-      return;
+    if (busy) return;
+    setActionError(null);
+
+    let url = order.link?.url;
+
+    if (!url) {
+      setBusy(true);
+      const result = await sendChange(order.id, "copy");
+      setBusy(false);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      url = result.change.link?.url;
+      setOrder(result.change);
+      onChanged();
+      if (!url) {
+        setActionError("The approval link could not be generated. Try again.");
+        return;
+      }
     }
+
     try {
       await navigator.clipboard.writeText(
-        new URL(order.link.url, window.location.origin).toString(),
+        new URL(url, window.location.origin).toString(),
       );
       setCopied(true);
-      setActionError(null);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setActionError("Could not copy automatically — select the link above and copy it.");
     }
+  };
+
+  const handleWithdraw = async () => {
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    const result = await withdrawChange(order.id);
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    setOrder(result.change);
+    onChanged();
+  };
+
+  const handleDelete = async () => {
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    const result = await deleteChange(order.id);
+    setBusy(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      setConfirmDelete(false);
+      return;
+    }
+    onChanged();
+    onClose();
   };
 
   return (
@@ -294,16 +358,19 @@ export default function ChangeDrawer({
                   <button
                     className="btn btn-primary btn-sm"
                     type="button"
+                    disabled={busy}
+                    aria-busy={busy}
                     onClick={handleCopyLink}
                   >
                     <Icon icon={copied ? Check : Copy} className="ico ico-sm" />
-                    {copied ? "Link copied" : "Copy link"}
+                    {busy
+                      ? "Preparing…"
+                      : copied
+                        ? "Link copied"
+                        : isDraft
+                          ? "Send & copy link"
+                          : "Copy link"}
                   </button>
-                  {isDraft ? (
-                    <button className="btn btn-ghost btn-sm" type="button">
-                      Send for approval
-                    </button>
-                  ) : null}
                 </div>
 
                 <p className="q-link-sent">
@@ -361,15 +428,70 @@ export default function ChangeDrawer({
         </div>
 
         <footer className="drawer-foot ch-drawer-foot">
-          <button className="btn btn-ghost" type="button" onClick={onClose}>
-            Close
-          </button>
-          {!isDecided ? (
-            <button className="btn btn-primary" type="button">
-              <Icon icon={Copy} className="ico ico-sm" />
-              Copy approval link
-            </button>
-          ) : null}
+          {confirmDelete ? (
+            <>
+              <span className="ch-confirm-text">
+                Delete <strong>{order.id}</strong>? This cannot be undone.
+              </span>
+              <span className="ch-confirm-actions">
+                <button
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  type="button"
+                  disabled={busy}
+                  onClick={handleDelete}
+                >
+                  {busy ? "Deleting…" : "Delete"}
+                </button>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="ch-foot-left">
+                <button className="btn btn-ghost" type="button" onClick={onClose}>
+                  Close
+                </button>
+                {isDraft ? (
+                  <button
+                    className="btn btn-ghost btn-sm ch-withdraw"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    Delete draft
+                  </button>
+                ) : null}
+                {!isClosed && !isDraft ? (
+                  <button
+                    className="btn btn-ghost btn-sm ch-withdraw"
+                    type="button"
+                    disabled={busy}
+                    onClick={handleWithdraw}
+                  >
+                    Withdraw
+                  </button>
+                ) : null}
+              </span>
+              {!isClosed ? (
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={busy}
+                  onClick={handleCopyLink}
+                >
+                  <Icon icon={copied ? Check : Copy} className="ico ico-sm" />
+                  {copied ? "Link copied" : "Copy approval link"}
+                </button>
+              ) : null}
+            </>
+          )}
         </footer>
       </aside>
     </>

@@ -383,3 +383,25 @@
 
   .nc-line-total > strong { line-height: 44px; }
 }
+
+/* ---------- Validation + cancel ---------- */
+
+.nc-error {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--red);
+}
+
+.nc-error-block {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
+}
+
+.nc-cancel {
+  justify-content: center;
+  text-decoration: none;
+}

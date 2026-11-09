@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowDownRight, ArrowUpRight, Plus, Trash2 } from "lucide-react";
 import AppShell, { Icon } from "../../app-shell";
 import {
@@ -10,6 +11,7 @@ import {
   type ChangeKind,
 } from "../../../lib/changes-types";
 import { money } from "../../../lib/quotes-types";
+import { createChange, getEligibleJobs, type EligibleJob } from "../actions";
 import "../changes.css";
 import "./new-change.css";
 
@@ -30,13 +32,6 @@ const KINDS: ChangeKind[] = [
   "delay",
 ];
 
-/** Jobs that already have an approved quote — only those can change. */
-const ELIGIBLE_JOBS = [
-  { reference: "J-2026-7709", title: "Bathroom refit — pipework and fixtures", quote: "Q-2026-0002", baseline: 103500 },
-  { reference: "J-2026-2B51", title: "Kitchen radiator repositioning", quote: "Q-2026-0001", baseline: 68000 },
-  { reference: "J-2026-D7CC", title: "Outdoor tap and pipework", quote: "Q-2026-0003", baseline: 42000 },
-];
-
 type Line = {
   key: string;
   description: string;
@@ -55,13 +50,37 @@ const blankLine = (): Line => ({
 });
 
 export default function NewChangeOrderPage() {
-  const [jobRef, setJobRef] = useState(ELIGIBLE_JOBS[0]?.reference ?? "");
+  const router = useRouter();
+  const [jobs, setJobs] = useState<EligibleJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobRef, setJobRef] = useState("");
   const [kind, setKind] = useState<ChangeKind>("extra-work");
   const [summary, setSummary] = useState("");
   const [reason, setReason] = useState("");
+  const [validUntil, setValidUntil] = useState("");
   const [lines, setLines] = useState<Line[]>([blankLine()]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const job = ELIGIBLE_JOBS.find((j) => j.reference === jobRef);
+  // Only jobs with an approved quote can take a change, so the list comes
+  // from the server rather than being guessed on the client.
+  const load = useCallback(async () => {
+    const result = await getEligibleJobs();
+    if (result.ok) {
+      setJobs(result.jobs);
+      setJobRef((current) => current || (result.jobs[0]?.reference ?? ""));
+    } else {
+      setError(result.error);
+    }
+    setJobsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const job = jobs.find((j) => j.reference === jobRef);
 
   const net = useMemo(
     () =>
@@ -74,8 +93,42 @@ export default function NewChangeOrderPage() {
     [lines],
   );
 
-  const baseline = job?.baseline ?? 0;
+  const baseline = job?.baselineCents ?? 0;
+  const currency = job?.currency ?? "GBP";
   const newTotal = baseline + net;
+
+  const handleSubmit = async (andCopy: boolean) => {
+    if (saving) return;
+    setError(null);
+    setFieldErrors({});
+    setSaving(true);
+
+    const result = await createChange({
+      jobReference: jobRef,
+      kind,
+      summary,
+      reason,
+      validUntil,
+      lines: lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        direction: line.direction,
+      })),
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+      return;
+    }
+
+    // The new order exists; leave the form for the list, where its drawer
+    // carries the Copy link button.
+    router.push("/changes");
+  };
 
   const update = (key: string, patch: Partial<Line>) =>
     setLines((current) =>
@@ -129,18 +182,27 @@ export default function NewChangeOrderPage() {
                     id="nc-job"
                     className="nc-input"
                     value={jobRef}
+                    disabled={jobsLoading || jobs.length === 0}
                     onChange={(event) => setJobRef(event.target.value)}
                   >
-                    {ELIGIBLE_JOBS.map((option) => (
+                    {jobsLoading ? <option value="">Loading jobs…</option> : null}
+                    {!jobsLoading && jobs.length === 0 ? (
+                      <option value="">No jobs with an approved quote yet</option>
+                    ) : null}
+                    {jobs.map((option) => (
                       <option key={option.reference} value={option.reference}>
                         {option.title} · {option.reference}
                       </option>
                     ))}
                   </select>
                   <p className="nc-hint">
-                    Only jobs with an approved quote can be changed — that quote is the
-                    baseline.
+                    {jobs.length === 0 && !jobsLoading
+                      ? "A job needs an approved quote before it can take a change order."
+                      : "Only jobs with an approved quote can be changed — that quote is the baseline."}
                   </p>
+                  {fieldErrors.jobReference ? (
+                    <p className="nc-error">{fieldErrors.jobReference}</p>
+                  ) : null}
                 </div>
 
                 <div className="nc-field">
@@ -172,6 +234,9 @@ export default function NewChangeOrderPage() {
                     onChange={(event) => setSummary(event.target.value.slice(0, 120))}
                   />
                   <p className="nc-hint">This is what the customer sees first.</p>
+                  {fieldErrors.summary ? (
+                    <p className="nc-error">{fieldErrors.summary}</p>
+                  ) : null}
                 </div>
 
                 <div className="nc-field">
@@ -186,6 +251,28 @@ export default function NewChangeOrderPage() {
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
                   />
+                  {fieldErrors.reason ? (
+                    <p className="nc-error">{fieldErrors.reason}</p>
+                  ) : null}
+                </div>
+
+                <div className="nc-field">
+                  <label className="field-label" htmlFor="nc-valid">
+                    Valid until
+                  </label>
+                  <input
+                    id="nc-valid"
+                    className="nc-input"
+                    type="date"
+                    value={validUntil}
+                    onChange={(event) => setValidUntil(event.target.value)}
+                  />
+                  <p className="nc-hint">
+                    After this date the link stops accepting a decision.
+                  </p>
+                  {fieldErrors.validUntil ? (
+                    <p className="nc-error">{fieldErrors.validUntil}</p>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -292,7 +379,7 @@ export default function NewChangeOrderPage() {
                               Math.round((Number(line.unitPrice) || 0) * 100) *
                                 (Number(line.quantity) || 0),
                             ) * (line.direction === "credit" ? -1 : 1),
-                            "GBP",
+                            currency,
                           )}
                         </strong>
                       </div>
@@ -316,7 +403,7 @@ export default function NewChangeOrderPage() {
                 <div className="ch-impact">
                   <div className="ch-impact-row">
                     <span className="ch-impact-label">Approved quote</span>
-                    <span className="ch-impact-value">{money(baseline, "GBP")}</span>
+                    <span className="ch-impact-value">{money(baseline, currency)}</span>
                   </div>
                   <div
                     className={`ch-impact-row ch-impact-change ${
@@ -330,11 +417,14 @@ export default function NewChangeOrderPage() {
                       />
                       This change
                     </span>
-                    <span className="ch-impact-value">{money(net, "GBP")}</span>
+                    <span className="ch-impact-value">
+                      {net < 0 ? "−" : "+"}
+                      {money(Math.abs(net), currency)}
+                    </span>
                   </div>
                   <div className="ch-impact-row ch-impact-new">
                     <span className="ch-impact-label">Job total</span>
-                    <span className="ch-impact-value">{money(newTotal, "GBP")}</span>
+                    <span className="ch-impact-value">{money(newTotal, currency)}</span>
                   </div>
                 </div>
 
@@ -344,16 +434,27 @@ export default function NewChangeOrderPage() {
                 </p>
 
                 <div className="nc-side-actions">
-                  <button className="btn btn-primary" type="button" disabled>
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    disabled={saving || jobs.length === 0}
+                    aria-busy={saving}
+                    onClick={() => handleSubmit(true)}
+                  >
                     <Icon icon={Plus} className="ico ico-sm" />
-                    Raise &amp; copy link
+                    {saving ? "Saving…" : "Raise change order"}
                   </button>
-                  <button className="btn btn-ghost" type="button" disabled>
-                    Save as draft
-                  </button>
+                  <Link href="/changes" className="btn btn-ghost nc-cancel">
+                    Cancel
+                  </Link>
                 </div>
+                {error ? (
+                  <p className="nc-error nc-error-block" role="alert">
+                    {error}
+                  </p>
+                ) : null}
                 <p className="nc-side-hint">
-                  Not connected to the database yet — this is the layout pass.
+                  Saves as a draft. Copy the link from the change order to send it.
                 </p>
               </div>
             </section>
