@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { connection } from "next/server";
 import { getDb } from "@/lib/db";
 import { quotesCollection } from "@/lib/quotes";
 import {
@@ -141,6 +142,12 @@ function toPublic(
 export async function getPublicChange(token: string): Promise<PublicChangeResult> {
   if (!isValidToken(token)) return { ok: false, reason: "not-found" };
 
+  // A token page can never be prerendered: the answer depends entirely on
+  // the incoming request, and both the clock and the database read are
+  // request-time values. `connection()` marks that boundary so Next.js
+  // renders this on demand instead of failing the build.
+  await connection();
+
   try {
     const db = await getDb();
     const doc = await changeOrdersCollection(db).findOne({ "link.token": token });
@@ -182,6 +189,10 @@ export async function decideChangeByToken(
   if (decision !== "approved" && decision !== "rejected") {
     return { ok: false, error: "Invalid decision." };
   }
+
+  // Reads the clock and writes to the database, so it must run at request
+  // time rather than during any prerender pass.
+  await connection();
 
   try {
     const db = await getDb();
@@ -270,6 +281,9 @@ export async function decideChangeByToken(
 /** Mark the link viewed, once — mirrors markQuoteViewed. */
 export async function markChangeViewed(token: string): Promise<void> {
   if (!isValidToken(token)) return;
+
+  // Also a request-time write: see the note in getPublicChange().
+  await connection();
 
   try {
     const db = await getDb();
