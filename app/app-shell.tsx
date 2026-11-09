@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useEffect, useState, type ReactNode, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useState, type ReactNode, type RefObject } from "react";
 import {
   Bell,
   ChevronRight,
@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { NAV_GROUPS } from "../lib/jobs-data";
 import { getNavCounts, type NavCounts } from "./nav-counts";
+import {
+  loadNotifications,
+  markAllAsRead,
+  markNotificationAsRead,
+} from "./notifications-actions";
+import NotificationPanel from "./notification-panel";
+import { notificationCountLabel, type NotificationFeed } from "../lib/notifications-shared";
 
 /* ------------------------------------------------------------------
    Icon helper — keeps every glyph decorative + consistently sized
@@ -54,6 +61,50 @@ export default function AppShell({
   // Live totals for the nav badges. `null` until loaded, so no badge flashes
   // on first paint; a count of 0 renders no badge at all.
   const [counts, setCounts] = useState<NavCounts | null>(null);
+  // Notification feed and its open/closed state. `null` means "not loaded
+  // yet", which renders no badge — the badge must never appear before we
+  // actually know there is something to report.
+  const [notifications, setNotifications] = useState<NotificationFeed | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  /** Re-read the feed; used after marking items read. */
+  const refreshNotifications = useCallback(async () => {
+    const next = await loadNotifications();
+    setNotifications(next);
+  }, []);
+
+  /**
+   * Opening an item marks it read.
+   *
+   * The badge is decremented immediately so the count never looks stale while
+   * the write is in flight — the server call then reconciles with the truth.
+   */
+  const handleItemOpen = useCallback(
+    (item: { id: string }) => {
+      setNotifications((current) => {
+        if (!current) return current;
+        const items = current.items.map((entry) =>
+          entry.id === item.id ? { ...entry, read: true } : entry,
+        );
+        return {
+          ...current,
+          items,
+          count: Math.max(0, items.filter((entry) => !entry.read).length),
+        };
+      });
+      void markNotificationAsRead(item.id);
+    },
+    [],
+  );
+
+  const handleMarkAll = useCallback(() => {
+    setNotifications((current) =>
+      current
+        ? { ...current, items: current.items.map((entry) => ({ ...entry, read: true })), count: 0 }
+        : current,
+    );
+    void markAllAsRead().then(refreshNotifications);
+  }, [refreshNotifications]);
   // Re-fetch the totals whenever the user moves between screens, so a
   // create or delete is reflected in the badges without a reload.
   const pathname = usePathname();
@@ -61,12 +112,23 @@ export default function AppShell({
   useEffect(() => {
     let active = true;
     (async () => {
-      const result = await getNavCounts();
-      if (active) setCounts(result);
+      const [countResult, notifResult] = await Promise.all([
+        getNavCounts(),
+        loadNotifications(),
+      ]);
+      if (!active) return;
+      setCounts(countResult);
+      setNotifications(notifResult);
     })();
     return () => {
       active = false;
     };
+  }, [pathname]);
+
+  // Leaving the page closes the panel; a popover should not survive a route
+  // change and reappear somewhere unexpected.
+  useEffect(() => {
+    setNotifOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -242,10 +304,37 @@ export default function AppShell({
                   <kbd className="kbd">⌘K</kbd>
                 </div>
 
-                <button className="icon-btn bell" type="button" aria-label="Notifications">
-                  <Icon icon={Bell} />
-                  <span className="bell-dot" aria-hidden="true" />
-                </button>
+                <div className="bell-wrap">
+                  <button
+                    className={`icon-btn bell${notifOpen ? " is-open" : ""}`}
+                    type="button"
+                    aria-label={notificationCountLabel(notifications?.count ?? 0)}
+                    aria-expanded={notifOpen}
+                    aria-haspopup="dialog"
+                    onClick={() => setNotifOpen((open) => !open)}
+                  >
+                    <Icon icon={Bell} />
+                    {/* The indicator is rendered only when there is something
+                        to report. A permanently-lit dot trains people to
+                        ignore it. */}
+                    {notifications && notifications.count > 0 ? (
+                      <span className="bell-dot" aria-hidden="true">
+                        {notifications.count > 9 ? "9+" : notifications.count}
+                      </span>
+                    ) : null}
+                  </button>
+
+                  {notifOpen ? (
+                    <NotificationPanel
+                      feed={notifications}
+                      loading={notifications === null}
+                      onClose={() => setNotifOpen(false)}
+                      onNavigate={() => setNotifOpen(false)}
+                      onItemOpen={handleItemOpen}
+                      onMarkAll={handleMarkAll}
+                    />
+                  ) : null}
+                </div>
               </div>
             </div>
           </header>

@@ -391,15 +391,252 @@ ul { margin: 0; padding: 0; }
 
 .menu-toggle { display: none; }
 
+/* ------------------------------------------------------------------
+   Notifications
+
+   The indicator is a count, not just a dot: "3 things need you" is
+   actionable, a mysterious green dot is not. It carries the brand green so
+   it reads as "work available" rather than an error.
+   ------------------------------------------------------------------ */
+.bell-wrap { position: relative; }
+
+.bell { position: relative; }
+
+.bell.is-open {
+  background: rgba(20, 33, 27, 0.075);
+  color: var(--ink);
+}
+
 .bell-dot {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--lime-deep);
+  top: 1px;
+  right: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--pine-700);
+  color: var(--lime-soft);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 2px var(--paper-2);
+}
+
+/* ---- Panel ---- */
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: 370px;
+  max-height: min(520px, calc(100vh - 100px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: 0 18px 42px rgba(15, 30, 23, 0.16), 0 2px 8px rgba(15, 30, 23, 0.07);
+  overflow: hidden;
+  animation: notifIn 0.16s var(--ease);
+}
+
+@keyframes notifIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-panel { animation: none; }
+}
+
+.notif-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 12px 11px 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.notif-head h2 {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.notif-head p {
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.notif-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.notif-list { list-style: none; margin: 0; padding: 0; }
+
+.notif-list > li + li { border-top: 1px solid var(--line-soft); }
+
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px 11px 15px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.13s var(--ease);
+}
+
+.notif-item:hover { background: #FBFBF6; }
+
+.notif-item:focus-visible {
+  outline: 2px solid rgba(23, 80, 63, 0.4);
+  outline-offset: -2px;
+}
+
+.notif-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--muted);
+}
+
+.notif-action .notif-ico {
+  background: var(--pine-700);
+  border-color: var(--pine-700);
+  color: var(--lime-soft);
+}
+
+.notif-warn .notif-ico {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+  color: var(--amber);
+}
+
+.notif-copy { flex: 1; min-width: 0; }
+
+.notif-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.notif-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.notif-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--faint);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.notif-go {
+  flex: none;
+  margin-top: 6px;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 0.13s var(--ease), transform 0.13s var(--ease);
+}
+
+.notif-item:hover .notif-go,
+.notif-item:focus-visible .notif-go {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.notif-item.is-skeleton { pointer-events: none; }
+.notif-item.is-skeleton > div { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+
+.notif-empty {
+  padding: 26px 22px 28px;
+  text-align: center;
+}
+
+.notif-empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 10px;
+  border-radius: 11px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  color: var(--faint);
+}
+
+.notif-empty h3 {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.notif-empty p {
+  max-width: 34ch;
+  margin: 4px auto 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.notif-foot {
+  border-top: 1px solid var(--line);
+  background: var(--paper-2);
+}
+
+.notif-foot-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pine-700);
+  text-decoration: none;
+}
+
+.notif-foot-link:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .notif-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 76vh;
+    border-radius: 14px 14px 0 0;
+  }
 }
 
 .search { position: relative; display: flex; align-items: center; width: 292px; }
@@ -1758,4 +1995,92 @@ ul { margin: 0; padding: 0; }
   font-size: 10.5px;
   line-height: 1.5;
   color: var(--faint);
+}
+
+/* ------------------------------------------------------------------
+   Notification read state
+
+   Unread is signalled three ways at once — a dot, a bolder title, and a
+   tinted row — because a single cue is easy to miss. Read items stay visible
+   but recede, so the list never "loses" something the user was reading.
+   ------------------------------------------------------------------ */
+.notif-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--pine-700);
+  color: var(--lime-soft);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  vertical-align: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.notif-item.is-unread {
+  background: rgba(23, 80, 63, 0.028);
+}
+
+.notif-item.is-unread:hover {
+  background: rgba(23, 80, 63, 0.055);
+}
+
+.notif-item.is-read .notif-title {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.notif-item.is-read .notif-ico {
+  opacity: 0.6;
+}
+
+.notif-unread-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--pine-600, #2f6b4f);
+  vertical-align: middle;
+}
+
+/* ---- Footer with two actions ---- */
+.notif-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.notif-mark-all {
+  border: 0;
+  background: none;
+  padding: 10px 4px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.notif-mark-all:hover {
+  color: var(--pine-700);
+  text-decoration: underline;
+}
+
+.notif-mark-all:focus-visible {
+  outline: 2px solid rgba(23, 80, 63, 0.4);
+  outline-offset: 1px;
+}
+
+.notif-foot .notif-foot-link {
+  padding: 10px 4px;
+  justify-content: flex-end;
 }
