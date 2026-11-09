@@ -2,6 +2,16 @@
 
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
+import {
+  buildLines,
+  ensureQuoteIndexes,
+  makeEvent,
+  newLinkToken,
+  nextQuoteReference,
+  quotesCollection,
+  sumLines,
+  type QuoteDoc,
+} from "@/lib/quotes";
 
 /* ------------------------------------------------------------------
    Types
@@ -33,7 +43,7 @@ type Draft = {
 };
 
 export type CreateJobResult =
-  | { ok: true; jobId: string; reference: string }
+  | { ok: true; jobId: string; reference: string; quoteReference: string }
   | { ok: false; error: string };
 
 /* ------------------------------------------------------------------
@@ -164,11 +174,77 @@ export async function createJob(draftJson: string): Promise<CreateJobResult> {
 
   try {
     const db = await getDb();
-    const result = await db.collection("jobs").insertOne(doc);
+    await ensureQuoteIndexes(db);
+
+    const now = doc.createdAt;
+    const lines = buildLines(
+      cleanedItems.map((item) => ({
+        description: item.description.trim(),
+        quantity: Number(item.quantity),
+        unitPriceCents: toCents(item.unitPrice),
+      })),
+    );
+
+    // A job is never useful without its quote, so both documents are written
+    // in one transaction: either the workspace gets a job *and* a quote, or
+    // nothing is persisted and the user sees a single error.
+    const session = db.client.startSession();
+    let quoteReference = "";
+
+    try {
+      await session.withTransaction(async () => {
+        await db.collection("jobs").insertOne(doc, { session });
+
+        quoteReference = await nextQuoteReference(db, new Date(now));
+
+        const quote: QuoteDoc = {
+          _id: new ObjectId(),
+          reference: quoteReference,
+          jobReference: reference,
+          jobId: _id,
+          // New quotes start as drafts — the scope is not agreed until the
+          // customer approves the approval link.
+          status: "draft",
+          currency: draft.currency,
+          title: readString(draft.jobTitle).trim(),
+          customer: {
+            name: readString(draft.customerName).trim(),
+            email: readString(draft.customerEmail).trim(),
+            phone: readString(draft.customerPhone).trim(),
+          },
+          site: { city: readString(draft.city).trim() },
+          lines,
+          // Snapshot of the quote baseline. Change orders are tracked
+          // separately and only ever added on top of this figure.
+          subtotalCents: sumLines(lines),
+          approvedChangesCents: 0,
+          pendingChangesCents: 0,
+          notes: readString(draft.notes).trim(),
+          issuedAt: now,
+          validUntil: readString(draft.validUntil),
+          activity: [
+            makeEvent(
+              "created",
+              "Quote created",
+              `Built from job ${reference}`,
+              now,
+            ),
+          ],
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        await quotesCollection(db).insertOne(quote, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+
     return {
       ok: true,
-      jobId: result.insertedId.toString(),
+      jobId: _id.toString(),
       reference,
+      quoteReference,
     };
   } catch (error) {
     return {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ChevronRight,
   Clock,
@@ -15,7 +15,6 @@ import AppShell, { Icon } from "../app-shell";
 import {
   QUOTE_FILTERS,
   QUOTE_STATUS_LABEL,
-  SAMPLE_QUOTES,
   expiryNote,
   money,
   quoteProjected,
@@ -23,9 +22,12 @@ import {
   type Quote,
   type QuoteStatus,
 } from "../../lib/quotes-types";
+import { getQuotes } from "./actions";
 import QuoteDrawer from "./quote-drawer";
 import { useNow } from "./use-now";
 import "./quotes.css";
+
+const SKELETON_ROWS = 5;
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -33,7 +35,48 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+function SkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: SKELETON_ROWS }, (_, row) => (
+        <tr
+          key={row}
+          className="skeleton-row"
+          style={{ "--row": row } as CSSProperties}
+          aria-hidden="true"
+        >
+          <td>
+            <span className="sk sk-title" />
+            <span className="sk sk-sub" />
+          </td>
+          <td>
+            <span className="sk sk-text" style={{ width: 88 }} />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" />
+          </td>
+          <td>
+            <span className="sk sk-pill" />
+          </td>
+          <td>
+            <span className="sk sk-text" style={{ width: 66 }} />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" style={{ width: 44 }} />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-icon" />
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 export default function QuotesPage() {
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<QuoteStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,7 +84,20 @@ export default function QuotesPage() {
   // Null during prerender; a real timestamp after mount.
   const now = useNow();
 
-  const quotes = SAMPLE_QUOTES;
+  const load = useCallback(async () => {
+    const result = await getQuotes();
+    if (result.ok) {
+      setQuotes(result.quotes);
+      setLoadError(null);
+    } else {
+      setLoadError(result.error);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -59,20 +115,21 @@ export default function QuotesPage() {
   const stats = useMemo(() => {
     const awaiting = quotes.filter((q) => q.status === "sent");
     const approved = quotes.filter((q) => q.status === "approved");
+    const rejected = quotes.filter((q) => q.status === "rejected");
     const drafts = quotes.filter((q) => q.status === "draft");
 
     const awaitingValue = awaiting.reduce((sum, q) => sum + quoteTotal(q), 0);
     const approvedValue = approved.reduce((sum, q) => sum + quoteProjected(q), 0);
-    const acceptance =
-      approved.length + quotes.filter((q) => q.status === "rejected").length > 0
-        ? Math.round(
-            (approved.length /
-              (approved.length + quotes.filter((q) => q.status === "rejected").length)) *
-              100,
-          )
-        : 0;
+    const decided = approved.length + rejected.length;
 
-    return { awaiting, approved, drafts, awaitingValue, approvedValue, acceptance };
+    return {
+      awaiting,
+      approved,
+      drafts,
+      awaitingValue,
+      approvedValue,
+      acceptance: decided > 0 ? Math.round((approved.length / decided) * 100) : 0,
+    };
   }, [quotes]);
 
   const selected = quotes.find((q) => q.id === selectedId) ?? null;
@@ -95,9 +152,7 @@ export default function QuotesPage() {
               <span className="eyebrow-dot" aria-hidden="true" />
               Agreed scope
             </p>
-            <h1>
-              Quotes
-            </h1>
+            <h1>Quotes</h1>
             <p className="lede">
               Every quote you have sent, waiting on, or locked in. Once a customer approves,
               the scope is fixed — and nothing extra gets invoiced without their say-so.
@@ -112,6 +167,26 @@ export default function QuotesPage() {
           </div>
         </section>
 
+        {loadError ? (
+          <div className="jobs-banner" role="alert">
+            <Icon icon={X} className="ico ico-sm" />
+            <span>
+              Could not load quotes — {loadError}
+              <button
+                className="btn btn-ghost btn-sm"
+                type="button"
+                style={{ marginLeft: 10 }}
+                onClick={() => {
+                  setLoading(true);
+                  void load();
+                }}
+              >
+                Retry
+              </button>
+            </span>
+          </div>
+        ) : null}
+
         {/* ---------- Stat strip ---------- */}
         <section className="q-stats" aria-label="Quote overview">
           <article className="q-stat">
@@ -122,11 +197,12 @@ export default function QuotesPage() {
               Awaiting approval
             </div>
             <div className="q-stat-value">
-              {money(stats.awaitingValue, "GBP")}
+              {loading ? <span className="sk sk-count" aria-hidden="true" /> : money(stats.awaitingValue, "GBP")}
             </div>
             <div className="q-stat-note">
-              {stats.awaiting.length} {stats.awaiting.length === 1 ? "quote" : "quotes"} out
-              with customers
+              {loading
+                ? "Loading…"
+                : `${stats.awaiting.length} ${stats.awaiting.length === 1 ? "quote" : "quotes"} out with customers`}
             </div>
           </article>
 
@@ -137,9 +213,17 @@ export default function QuotesPage() {
               </span>
               Locked in
             </div>
-            <div className="q-stat-value">{money(stats.approvedValue, "GBP")}</div>
+            <div className="q-stat-value">
+              {loading ? <span className="sk sk-count" aria-hidden="true" /> : money(stats.approvedValue, "GBP")}
+            </div>
             <div className="q-stat-note">
-              <span className="up">{stats.approved.length} approved</span> and under way
+              {loading ? (
+                "Loading…"
+              ) : (
+                <>
+                  <span className="up">{stats.approved.length} approved</span> and under way
+                </>
+              )}
             </div>
           </article>
 
@@ -150,7 +234,9 @@ export default function QuotesPage() {
               </span>
               Acceptance rate
             </div>
-            <div className="q-stat-value">{stats.acceptance}%</div>
+            <div className="q-stat-value">
+              {loading ? <span className="sk sk-count" aria-hidden="true" /> : `${stats.acceptance}%`}
+            </div>
             <div className="q-stat-note">of decided quotes were accepted</div>
           </article>
 
@@ -161,9 +247,13 @@ export default function QuotesPage() {
               </span>
               Drafts
             </div>
-            <div className="q-stat-value">{stats.drafts.length}</div>
+            <div className="q-stat-value">
+              {loading ? <span className="sk sk-count" aria-hidden="true" /> : stats.drafts.length}
+            </div>
             <div className="q-stat-note">
-              {stats.drafts.length > 0 ? (
+              {loading ? (
+                "Loading…"
+              ) : stats.drafts.length > 0 ? (
                 <>
                   <span className="warn">Not sent yet</span> — ready to review
                 </>
@@ -179,7 +269,9 @@ export default function QuotesPage() {
           <div className="panel-head">
             <div className="panel-title-wrap">
               <h2>All quotes</h2>
-              <span className="count">{quotes.length}</span>
+              <span className="count">
+                {loading ? <span className="sk sk-count" aria-hidden="true" /> : quotes.length}
+              </span>
             </div>
 
             <div className="panel-tools">
@@ -199,6 +291,8 @@ export default function QuotesPage() {
             </div>
           </div>
 
+          {loading ? <div className="loading-bar" aria-hidden="true" /> : null}
+
           <div className="table-wrap">
             <table className="q-table">
               <thead>
@@ -216,8 +310,10 @@ export default function QuotesPage() {
                   <th scope="col" aria-label="Open" />
                 </tr>
               </thead>
-              <tbody>
-                {visible.length === 0 ? (
+              <tbody aria-busy={loading}>
+                {loading ? (
+                  <SkeletonRows />
+                ) : visible.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ padding: 0, borderBottom: 0 }}>
                       <div className="q-empty">
@@ -229,13 +325,13 @@ export default function QuotesPage() {
                         </h3>
                         <p>
                           {quotes.length === 0
-                            ? "Build a quote from a job to agree the scope before any work starts."
+                            ? "Every new job comes with a quote. Create a job to agree the scope before any work starts."
                             : "Try a different status, or clear the search to see every quote."}
                         </p>
                         {quotes.length === 0 ? (
                           <Link href="/jobs/new" className="btn btn-primary btn-sm">
                             <Icon icon={Plus} className="ico ico-sm" />
-                            Create a quote
+                            Create a job &amp; quote
                           </Link>
                         ) : (
                           <button
@@ -275,8 +371,12 @@ export default function QuotesPage() {
                               <span className="q-ref">{quote.id}</span>
                               <span className="sep-dot" />
                               {quote.jobReference}
-                              <span className="sep-dot" />
-                              {quote.city}
+                              {quote.city ? (
+                                <>
+                                  <span className="sep-dot" />
+                                  {quote.city}
+                                </>
+                              ) : null}
                             </span>
                           </div>
                         </td>
@@ -293,10 +393,7 @@ export default function QuotesPage() {
                           </span>
                         </td>
                         <td>
-                          <span
-                            className={`q-expiry ${expiry?.tone ?? "calm"}`}
-                            title={expiry?.text ?? ""}
-                          >
+                          <span className={`q-expiry ${expiry?.tone ?? "calm"}`} title={expiry?.text ?? ""}>
                             {formatDate(quote.validUntil)}
                             {expiry ? ` · ${expiry.text}` : ""}
                           </span>
@@ -315,7 +412,14 @@ export default function QuotesPage() {
 
           <div className="panel-foot">
             <span className="foot-note">
-              Showing {visible.length} of {quotes.length} quotes
+              {loading ? (
+                <span className="loading-note" role="status" aria-live="polite">
+                  <span className="dot-pulse" aria-hidden="true" />
+                  Loading quotes…
+                </span>
+              ) : (
+                `Showing ${visible.length} of ${quotes.length} quotes`
+              )}
             </span>
             <span className="q-toolbar-note">
               Quotes lock on approval — changes after that need a change order
@@ -325,7 +429,12 @@ export default function QuotesPage() {
       </div>
 
       {selected ? (
-        <QuoteDrawer key={selected.id} quote={selected} onClose={() => setSelectedId(null)} />
+        <QuoteDrawer
+          key={selected.id}
+          quote={selected}
+          onClose={() => setSelectedId(null)}
+          onChanged={() => void load()}
+        />
       ) : null}
     </AppShell>
   );

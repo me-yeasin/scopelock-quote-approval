@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Icon } from "../app-shell";
 import { useNow } from "./use-now";
+import { sendQuote } from "./actions";
 import {
   QUOTE_STATUS_LABEL,
   expiryNote,
@@ -51,11 +52,15 @@ const METHOD_ICON = { email: Mail, sms: MessageSquare, copy: Link2 } as const;
 export default function QuoteDrawer({
   quote,
   onClose,
+  onChanged,
 }: {
   quote: Quote;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const now = useNow();
 
@@ -83,13 +88,29 @@ export default function QuoteDrawer({
 
   const copyLink = async () => {
     if (!quote.link) return;
+    const absolute = new URL(quote.link.url, window.location.origin).toString();
     try {
-      await navigator.clipboard.writeText(quote.link.url);
+      await navigator.clipboard.writeText(absolute);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
+  };
+
+  /** Send (or resend) the approval link, then refresh the list. */
+  const handleSend = async (method: "email" | "sms" | "copy") => {
+    if (sending) return;
+    setActionError(null);
+    setSending(true);
+    const result = await sendQuote(quote.id, method);
+    setSending(false);
+    if (!result.ok) {
+      setActionError(result.error);
+      return;
+    }
+    onChanged();
+    onClose();
   };
 
   return (
@@ -140,6 +161,13 @@ export default function QuoteDrawer({
               ) : null}
             </h3>
 
+            {actionError ? (
+              <div className="drawer-error" role="alert">
+                <Icon icon={X} className="ico ico-sm" />
+                {actionError}
+              </div>
+            ) : null}
+
             {isLocked ? (
               <div className="q-locked">
                 <Icon icon={Lock} className="ico ico-sm" />
@@ -159,13 +187,23 @@ export default function QuoteDrawer({
                   <code>{quote.link.url}</code>
                 </div>
                 <div className="q-link-actions">
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={copyLink}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    disabled={sending}
+                    onClick={copyLink}
+                  >
                     <Icon icon={copied ? Check : Copy} className="ico ico-sm" />
                     {copied ? "Copied" : "Copy link"}
                   </button>
-                  <button className="btn btn-ghost btn-sm" type="button">
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    disabled={sending}
+                    onClick={() => handleSend(quote.link?.method ?? "copy")}
+                  >
                     <Icon icon={Send} className="ico ico-sm" />
-                    Resend
+                    {sending ? "Sending…" : "Resend"}
                   </button>
                 </div>
                 <p className="q-link-sent">
@@ -183,9 +221,14 @@ export default function QuoteDrawer({
                   Send it to {quote.customer} for approval to lock the scope and start the job.
                 </p>
                 <div className="q-link-actions">
-                  <button className="btn btn-primary btn-sm" type="button">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    type="button"
+                    disabled={sending}
+                    onClick={() => handleSend("copy")}
+                  >
                     <Icon icon={Send} className="ico ico-sm" />
-                    Send for approval
+                    {sending ? "Sending…" : "Send for approval"}
                   </button>
                 </div>
               </div>
