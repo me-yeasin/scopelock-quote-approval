@@ -1,0 +1,569 @@
+/* ============================================================
+   Quotes screen
+   List + detail drawer. Follows the Overview/Jobs visual language:
+   warm paper surfaces, pine/lime accents, editorial headings.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Page-level layout
+   ------------------------------------------------------------ */
+.quotes-page { display: flex; flex-direction: column; gap: 16px; }
+
+/* Status chips reuse the .status pill but gain a sent/expired tone. */
+.status-sent {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+}
+.status-expired {
+  color: #6B6F6C;
+  background: #F1F1EC;
+  border-color: #E3E3DA;
+}
+.status-rejected {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: var(--red-line);
+}
+
+/* Small outlined chip used next to the job reference. */
+.q-ref {
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------
+   Stat strip
+   ------------------------------------------------------------ */
+.q-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.q-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.q-stat-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.q-stat-ico {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--pine-700);
+  background: #EFF3E9;
+}
+
+.q-stat-value {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--pine-950);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-stat-note {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.q-stat-note .up { color: var(--green); font-weight: 600; }
+.q-stat-note .warn { color: var(--amber); font-weight: 600; }
+
+/* ------------------------------------------------------------
+   Filter row (segmented control + total)
+   ------------------------------------------------------------ */
+.q-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.q-toolbar-note {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------
+   Quote table
+   ------------------------------------------------------------ */
+.q-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.q-table th {
+  padding: 9px 11px;
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.q-table td {
+  padding: 14px 11px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.q-table th:first-child,
+.q-table td:first-child { padding-left: 16px; }
+.q-table th:last-child,
+.q-table td:last-child { padding-right: 16px; }
+
+.q-table tbody tr {
+  cursor: pointer;
+  transition: background 0.14s var(--ease);
+}
+.q-table tbody tr:hover { background: #FBFBF6; }
+.q-table tbody tr:last-child td { border-bottom: 0; }
+.q-table tbody tr:focus-visible {
+  outline: 2px solid rgba(23, 80, 63, 0.4);
+  outline-offset: -2px;
+}
+
+.q-cell-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.q-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.008em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.q-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.q-sub .sep-dot {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: #CBD1C8;
+}
+
+.q-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.q-total {
+  font-weight: 600;
+  color: var(--pine-950);
+}
+
+/* Expiry hint inline with the valid-until cell. */
+.q-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.q-expiry.calm { color: var(--faint); }
+.q-expiry.warn { color: var(--amber); }
+.q-expiry.danger { color: var(--red); }
+
+.q-chevron {
+  color: #C4C9C0;
+  transition: transform 0.15s var(--ease), color 0.15s var(--ease);
+}
+.q-table tbody tr:hover .q-chevron { transform: translateX(2px); color: var(--pine-700); }
+
+/* ------------------------------------------------------------
+   Empty state
+   ------------------------------------------------------------ */
+.q-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 46px 20px 50px;
+  text-align: center;
+}
+.q-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 13px;
+  color: var(--pine-700);
+  background: #EFF3E9;
+  border: 1px solid #E5EBDF;
+}
+.q-empty h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.q-empty p {
+  margin: 0;
+  max-width: 300px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.q-empty .btn { margin-top: 8px; }
+
+/* ------------------------------------------------------------
+   Quote detail drawer
+   Reuses .job-drawer chrome; these are the quote-specific parts.
+   ------------------------------------------------------------ */
+.q-drawer { width: min(560px, 100vw); }
+
+.q-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.q-drawer-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--pine-950);
+}
+
+.q-drawer-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+/* --- Section wrapper inside the drawer body --- */
+.q-section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.q-section + .q-section {
+  padding-top: 15px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.q-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* --- Approval link card --- */
+.q-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: linear-gradient(180deg, #FCFCF8, #F8F8F2);
+}
+
+.q-link-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.q-link-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px dashed #D8D8CC;
+  border-radius: 8px;
+  background: #FFF;
+  min-width: 0;
+}
+
+.q-link-url code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
+
+.q-link-actions { display: flex; gap: 7px; }
+.q-link-actions .btn { flex: 1; justify-content: center; }
+
+.q-link-sent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--faint);
+}
+
+/* Locked state shown once the quote is approved. */
+.q-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid var(--green-line);
+  border-radius: 11px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.q-locked strong { color: #145634; }
+
+/* --- Line items --- */
+.q-lines { display: flex; flex-direction: column; }
+
+.q-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px 78px;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 11.5px;
+}
+.q-line:last-child { border-bottom: 0; }
+
+.q-line-desc { color: var(--ink-2); line-height: 1.45; }
+.q-line-qty {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+  font-size: 11px;
+}
+.q-line-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.q-lines-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px 78px;
+  gap: 10px;
+  padding-bottom: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 1px solid var(--line);
+}
+.q-lines-head span:nth-child(2),
+.q-lines-head span:nth-child(3) { text-align: right; }
+
+/* --- Totals ladder: the heart of the product promise --- */
+.q-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #FCFCF8;
+}
+
+.q-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.q-total-row .label { display: inline-flex; align-items: center; gap: 6px; }
+
+.q-total-row .val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.q-total-row.is-approved .val { color: var(--green); }
+.q-total-row.is-pending .val { color: var(--amber); }
+.q-total-row.is-excluded {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: #D5D5C9;
+}
+.q-total-row.is-excluded .val { color: var(--faint); }
+
+.q-total-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--line);
+}
+
+.q-total-final {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pine-950);
+}
+.q-total-final .val {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.q-total-hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+/* --- Notes --- */
+.q-notes {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+/* --- Activity timeline --- */
+.q-timeline { display: flex; flex-direction: column; gap: 0; }
+
+.q-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 9px;
+  padding: 0 0 13px;
+}
+.q-event:last-child { padding-bottom: 0; }
+
+/* Connector line between dots. */
+.q-event:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 13px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--line);
+}
+
+.q-event-dot {
+  margin-top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #FFF;
+  border: 2px solid #CDD3CA;
+  justify-self: center;
+  z-index: 1;
+}
+.q-event.is-key .q-event-dot {
+  border-color: var(--lime-deep);
+  background: var(--lime);
+}
+
+.q-event-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.q-event-detail {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.q-event-at {
+  font-size: 10px;
+  color: var(--faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------
+   Responsive
+   ------------------------------------------------------------ */
+@media (max-width: 1100px) {
+  .q-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 860px) {
+  /* Hide the lower-value columns on narrow screens. */
+  .q-table th:nth-child(2),
+  .q-table td:nth-child(2),
+  .q-table th:nth-child(4),
+  .q-table td:nth-child(4),
+  .q-table th:nth-child(5),
+  .q-table td:nth-child(5) { display: none; }
+}
+
+@media (max-width: 560px) {
+  .q-stats { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .q-stat { padding: 11px 12px; }
+  .q-stat-value { font-size: 18px; }
+  .q-table th:nth-child(6),
+  .q-table td:nth-child(6) { display: none; }
+  .q-drawer { width: 100vw; }
+  .q-line,
+  .q-lines-head { grid-template-columns: minmax(0, 1fr) 76px; }
+  .q-line-qty,
+  .q-lines-head span:nth-child(2) { display: none; }
+}

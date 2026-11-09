@@ -38,7 +38,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, href: "/" },
       { id: "jobs", label: "Jobs", icon: Briefcase, badge: 3, href: "/jobs" },
-      { id: "quotes", label: "Quotes", icon: FileText, badge: 2, href: "#" },
+      { id: "quotes", label: "Quotes", icon: FileText, badge: 2, href: "/quotes" },
     ],
   },
   {
