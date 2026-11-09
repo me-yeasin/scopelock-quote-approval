@@ -4,11 +4,14 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import {
   ensureQuoteIndexes,
+  lineTotalCents,
   makeEvent,
   newLinkToken,
   quotesCollection,
+  sumLines,
   type QuoteDoc,
   type QuoteStatus,
+  type StoredLineItem,
 } from "@/lib/quotes";
 import type { Quote } from "@/lib/quotes-types";
 
@@ -292,6 +295,260 @@ export async function expireStaleQuotes(): Promise<{ ok: true; expired: number }
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Could not expire quotes.",
+    };
+  }
+}
+
+/* ------------------------------------------------------------------
+   Editing
+   ------------------------------------------------------------------
+   A quote is editable while it is still "yours to change":
+
+   - draft   : free to edit. The customer has never seen it.
+   - sent    : free to edit too. The approval link is rotated as part of the
+               same write, so the previous link stops working and the quote
+               is copied out fresh. Saving is never blocked and never asks
+               for confirmation.
+   - approved / rejected : frozen. The scope is settled; changes belong in
+               a change order, not in a rewrite of the baseline.
+
+   Totals are never trusted from the client: line totals and the subtotal
+   are re-derived here, and the linked job's total is updated in the same
+   transaction so the Jobs and Quotes screens cannot disagree.
+   ------------------------------------------------------------------ */
+
+export type QuoteEditInput = {
+  title: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  city: string;
+  currency: "GBP" | "EUR";
+  notes: string;
+  validUntil: string;
+  lines: { description: string; quantity: number; unitPriceCents: number }[];
+};
+
+export type QuoteEditResult =
+  | { ok: true; quote: Quote; linkRotated: boolean }
+  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+
+const MAX_TITLE = 120;
+const MAX_NAME = 120;
+const MAX_CITY = 80;
+const MAX_LINE_DESC = 200;
+const MAX_LINES = 50;
+const MAX_QTY = 10_000;
+const MAX_UNIT_CENTS = 100_000_000; // £1,000,000 per unit
+
+function str(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Re-derive every stored money field from the edited lines. */
+function normalizeLines(raw: unknown): {
+  lines: StoredLineItem[];
+  errors: Record<string, string>;
+} {
+  const errors: Record<string, string> = {};
+  const input = Array.isArray(raw) ? raw : [];
+
+  if (input.length === 0) {
+    errors.lines = "Add at least one line item.";
+    return { lines: [], errors };
+  }
+  if (input.length > MAX_LINES) {
+    errors.lines = `Keep it to ${MAX_LINES} line items or fewer.`;
+    return { lines: [], errors };
+  }
+
+  const lines: StoredLineItem[] = [];
+
+  input.forEach((entry, index) => {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const description = str(item.description);
+    const quantity = Number(item.quantity);
+    const unitPriceCents = Math.round(Number(item.unitPriceCents));
+
+    if (!description) {
+      errors[`line.${index}.description`] = "Describe this item.";
+      return;
+    }
+    if (description.length > MAX_LINE_DESC) {
+      errors[`line.${index}.description`] = `Keep it under ${MAX_LINE_DESC} characters.`;
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > MAX_QTY) {
+      errors[`line.${index}.quantity`] = "Enter a quantity above 0.";
+      return;
+    }
+    if (!Number.isFinite(unitPriceCents) || unitPriceCents < 0 || unitPriceCents > MAX_UNIT_CENTS) {
+      errors[`line.${index}.unitPrice`] = "Enter a valid price.";
+      return;
+    }
+
+    lines.push({
+      description,
+      quantity,
+      unitPriceCents,
+      // Recomputed, never taken from the client.
+      totalCents: lineTotalCents({ quantity, unitPriceCents }),
+    });
+  });
+
+  return { lines, errors };
+}
+
+export async function updateQuote(
+  reference: string,
+  input: QuoteEditInput,
+): Promise<QuoteEditResult> {
+  if (!reference) return { ok: false, error: "Missing quote reference." };
+
+  const fieldErrors: Record<string, string> = {};
+
+  const title = str(input.title);
+  const customerName = str(input.customerName);
+  const customerEmail = str(input.customerEmail);
+  const customerPhone = str(input.customerPhone);
+  const city = str(input.city);
+  const notes = str(input.notes);
+  const validUntil = str(input.validUntil);
+
+  if (!title) fieldErrors.title = "Give this quote a title.";
+  else if (title.length > MAX_TITLE) fieldErrors.title = `Keep it under ${MAX_TITLE} characters.`;
+
+  if (!customerName) fieldErrors.customerName = "Enter the customer's name.";
+  else if (customerName.length > MAX_NAME)
+    fieldErrors.customerName = `Keep it under ${MAX_NAME} characters.`;
+
+  if (city.length > MAX_CITY) fieldErrors.city = `Keep it under ${MAX_CITY} characters.`;
+
+  if (input.currency !== "GBP" && input.currency !== "EUR") {
+    fieldErrors.currency = "Choose GBP or EUR.";
+  }
+
+  // A validity date is required so the link always has an expiry.
+  if (!validUntil || !/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) {
+    fieldErrors.validUntil = "Choose a valid-until date.";
+  }
+
+  const { lines, errors: lineErrors } = normalizeLines(input.lines);
+  Object.assign(fieldErrors, lineErrors);
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return { ok: false, error: "Check the highlighted fields.", fieldErrors };
+  }
+
+  try {
+    const db = await getDb();
+    const quotes = quotesCollection(db);
+
+    const existing = await quotes.findOne({ reference });
+    if (!existing) return { ok: false, error: "That quote no longer exists." };
+
+    // Frozen once settled: the approved figure is the baseline the whole
+    // product is built on, so it must never be rewritten.
+    if (existing.status === "approved" || existing.status === "rejected") {
+      return {
+        ok: false,
+        error:
+          existing.status === "approved"
+            ? "This quote is approved and locked. Add a change order to adjust the scope."
+            : "This quote was rejected. Create a new quote instead of editing this one.",
+      };
+    }
+
+    // A sent quote may already be in the customer's hands. Editing it is
+    // allowed and saves straight away; the approval link is rotated as part
+    // of the same write so the old link stops working and the new one is the
+    // one the user copies. No intermediate confirmation step.
+    const isShared = existing.status === "sent" || Boolean(existing.link);
+
+    const subtotalCents = sumLines(lines);
+    const now = new Date().toISOString();
+    const rotateLink = isShared;
+
+    const update: Record<string, unknown> = {
+      $set: {
+        title,
+        currency: input.currency,
+        "customer.name": customerName,
+        "customer.email": customerEmail,
+        "customer.phone": customerPhone,
+        "site.city": city,
+        notes,
+        validUntil,
+        lines,
+        subtotalCents,
+        updatedAt: now,
+        // A shared quote that is edited goes back to "awaiting approval"
+        // under a new link; a draft simply stays a draft.
+        ...(rotateLink
+          ? {
+              status: "sent",
+              "link.token": newLinkToken(),
+              "link.sentAt": now,
+              "link.method": "copy",
+              "link.sentTo":
+                existing.link?.method === "sms" ? customerPhone : customerEmail,
+            }
+          : {}),
+      },
+      $push: {
+        activity: makeEvent(
+          "edited",
+          "Quote edited",
+          rotateLink
+            ? "Details updated and the previous approval link was replaced"
+            : "Details updated before sending",
+          now,
+        ),
+      },
+    };
+
+    const session = db.client.startSession();
+    let updated: QuoteDoc | null = null;
+
+    try {
+      await session.withTransaction(async () => {
+        updated = await quotes.findOneAndUpdate({ reference }, update, {
+          returnDocument: "after",
+          session,
+        });
+
+        if (!updated) throw new Error("That quote no longer exists.");
+
+        // Keep the job's headline total in step with the quote, so the two
+        // screens can never show different numbers for the same work.
+        await db
+          .collection("jobs")
+        await db
+          .collection("jobs")
+          .updateOne(
+            { reference: updated.jobReference },
+            { $set: { totalCents: subtotalCents, updatedAt: now } },
+            { session },
+          );
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!updated) return { ok: false, error: "Could not save the quote." };
+
+    revalidatePath("/quotes");
+    revalidatePath("/jobs");
+
+    return {
+      ok: true,
+      quote: mapDocToQuote(updated),
+      linkRotated: rotateLink,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not save the quote.",
     };
   }
 }

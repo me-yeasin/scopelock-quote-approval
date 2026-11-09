@@ -40,7 +40,7 @@ export type QuoteLink = {
 };
 
 export type QuoteEvent = {
-  type: "created" | "sent" | "viewed" | "approved" | "rejected";
+  type: "created" | "sent" | "viewed" | "approved" | "rejected" | "edited";
   label: string;
   detail: string;
   at: string;

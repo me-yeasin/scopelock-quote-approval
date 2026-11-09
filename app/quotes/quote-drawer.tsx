@@ -12,13 +12,19 @@ import {
   Lock,
   Mail,
   MessageSquare,
+  Pencil,
   Send,
   ShieldCheck,
   X,
 } from "lucide-react";
 import { Icon } from "../app-shell";
 import { useNow } from "./use-now";
-import { sendQuote } from "./actions";
+import { sendQuote, updateQuote } from "./actions";
+import QuoteEditForm, {
+  toEditDraft,
+  type EditDraft,
+  type EditErrors,
+} from "./quote-edit-form";
 import {
   QUOTE_STATUS_LABEL,
   expiryNote,
@@ -51,7 +57,7 @@ function relative(iso: string, now: number | null) {
 const METHOD_ICON = { email: Mail, sms: MessageSquare, copy: Link2 } as const;
 
 export default function QuoteDrawer({
-  quote,
+  quote: initialQuote,
   onClose,
   onChanged,
 }: {
@@ -59,9 +65,20 @@ export default function QuoteDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  // The drawer keeps its own copy so a save can swap in the updated record
+  // immediately, without waiting for the list behind it to refetch.
+  const [quote, setQuote] = useState<Quote>(initialQuote);
+  useEffect(() => {
+    setQuote(initialQuote);
+  }, [initialQuote]);
+
   const [copied, setCopied] = useState(false);
   const [copying, setCopying] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Editing state. `draft` is null while viewing.
+  const [draft, setDraft] = useState<EditDraft | null>(null);
+  const [editErrors, setEditErrors] = useState<EditErrors>({});
+  const [saving, setSaving] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const now = useNow();
 
@@ -85,6 +102,67 @@ export default function QuoteDrawer({
   const total = quoteTotal(quote);
   const projected = quoteProjected(quote);
   const isLocked = quote.status === "approved";
+  // Approved and rejected quotes are frozen: their figures are the record.
+  const isFrozen = isLocked || quote.status === "rejected";
+  const editing = draft !== null;
+
+  const startEdit = () => {
+    setActionError(null);
+    setEditErrors({});
+    setDraft(toEditDraft(quote));
+  };
+
+  const cancelEdit = () => {
+    setDraft(null);
+    setEditErrors({});
+    setActionError(null);
+  };
+
+  /**
+   * Save the draft in one click.
+   *
+   * Writes to the database, then swaps in the stored record and returns to
+   * the normal drawer view so the updated quote — and its fresh approval
+   * link — are immediately available to copy. No confirmation step.
+   */
+  const handleSave = async () => {
+    if (!draft || saving) return;
+    setActionError(null);
+    setEditErrors({});
+    setSaving(true);
+
+    const result = await updateQuote(quote.id, {
+      title: draft.title,
+      customerName: draft.customerName,
+      customerEmail: draft.customerEmail,
+      customerPhone: draft.customerPhone,
+      city: draft.city,
+      currency: draft.currency,
+      notes: draft.notes,
+      validUntil: draft.validUntil,
+      // Convert once, here: strings in the UI, integer minor units in the DB.
+      lines: draft.lines.map((line) => ({
+        description: line.description,
+        quantity: Number(line.quantity) || 0,
+        unitPriceCents: Math.round((Number(line.unitPrice) || 0) * 100),
+      })),
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      // Only genuine validation failures land here.
+      setActionError(result.error);
+      if (result.fieldErrors) setEditErrors(result.fieldErrors);
+      return;
+    }
+
+    // Saved. Show the stored record and leave edit mode.
+    setQuote(result.quote);
+    setDraft(null);
+    setEditErrors({});
+    onChanged();
+  };
   const MethodIcon = quote.link ? METHOD_ICON[quote.link.method] : Link2;
 
   /**
@@ -111,7 +189,8 @@ export default function QuoteDrawer({
         return;
       }
       url = result.quote.link?.url;
-      // Reflect the new status/link in the list behind the drawer.
+      // Show the new status/link immediately, and refresh the list behind.
+      setQuote(result.quote);
       onChanged();
       if (!url) {
         setActionError("The approval link could not be generated. Try again.");
@@ -153,18 +232,46 @@ export default function QuoteDrawer({
               <span>{quote.customer}</span>
             </div>
           </div>
-          <button
-            ref={closeRef}
-            className="icon-btn"
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <Icon icon={X} />
-          </button>
+          <div className="q-drawer-actions">
+            {!isFrozen && !editing ? (
+              <button className="icon-btn" type="button" aria-label="Edit quote" title="Edit quote" onClick={startEdit}>
+                <Icon icon={Pencil} />
+              </button>
+            ) : null}
+            <button
+              ref={closeRef}
+              className="icon-btn"
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+            >
+              <Icon icon={X} />
+            </button>
+          </div>
         </header>
 
         <div className="drawer-body">
+          {editing && draft ? (
+            <>
+              {actionError ? (
+                <div className="drawer-error" role="alert">
+                  <Icon icon={X} className="ico ico-sm" />
+                  {actionError}
+                </div>
+              ) : null}
+              <QuoteEditForm
+                draft={draft}
+                errors={editErrors}
+                disabled={saving}
+                onChange={(next) => {
+                  setDraft(next);
+                  // Clear a field's error as soon as it is touched.
+                  if (Object.keys(editErrors).length > 0) setEditErrors({});
+                }}
+              />
+            </>
+          ) : (
+            <>
           {/* ---------------- Approval link ---------------- */}
           <section className="q-section">
             <h3 className="q-section-title">
@@ -347,24 +454,63 @@ export default function QuoteDrawer({
               ))}
             </div>
           </section>
+            </>
+          )}
         </div>
 
         <footer className="drawer-foot">
-          <span className="q-total-hint">
-            Issued {formatDate(quote.issuedAt)}
-            {expiry ? ` · ${expiry.text}` : ""}
-          </span>
+          {editing ? (
+            <span className="q-total-hint">
+              Saving updates the linked job total too
+            </span>
+          ) : (
+            <span className="q-total-hint">
+              Issued {formatDate(quote.issuedAt)}
+              {expiry ? ` · ${expiry.text}` : ""}
+            </span>
+          )}
           <div className="drawer-foot-right">
-            <button className="btn btn-ghost" type="button" onClick={onClose}>
-              Close
-            </button>
-            <Link
-              className="btn btn-primary"
-              href={`/jobs?job=${encodeURIComponent(quote.jobReference)}`}
-              title={`Open job ${quote.jobReference}`}
-            >
-              Open job
-            </Link>
+            {editing ? (
+              <>
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  disabled={saving}
+                  onClick={cancelEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={saving}
+                  aria-busy={saving}
+                  onClick={handleSave}
+                >
+                  {saving ? (
+                    <>
+                      <span className="btn-spinner" aria-hidden="true" />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save changes"
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-ghost" type="button" onClick={onClose}>
+                  Close
+                </button>
+                <Link
+                  className="btn btn-primary"
+                  href={`/jobs?job=${encodeURIComponent(quote.jobReference)}`}
+                  title={`Open job ${quote.jobReference}`}
+                >
+                  Open job
+                </Link>
+              </>
+            )}
           </div>
         </footer>
       </aside>
