@@ -1,0 +1,552 @@
+@import "../quotes/quotes.css";
+@import "../changes/changes.css";
+
+/* ------------------------------------------------------------------
+   Invoices — one live invoice per job.
+
+   The drawer renders the invoice as the document it becomes, so the
+   typography here leans towards a printed statement: tabular figures,
+   generous line rhythm, and a clear separation between the agreed quote
+   and the changes that moved it.
+   ------------------------------------------------------------------ */
+
+/* Base table styling comes from `.q-table` (imported via quotes.css).
+   Only invoice-specific concerns live here. */
+.iv-table td,
+.iv-table th {
+  vertical-align: middle;
+}
+
+.iv-table td {
+  height: 62px;
+}
+
+/* The description column is the only one allowed to wrap. */
+.iv-table th:nth-child(3),
+.iv-table td:nth-child(3) {
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
+  .iv-table th:nth-child(6),
+  .iv-table td:nth-child(6) {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  /* `.q-table` (imported from quotes.css) hides its column 4 — the quote
+     "expiry" column. For invoices column 4 is Total, which must stay: it is
+     the number this screen exists to show. Reasserting it here overrides
+     that inherited rule. */
+  .iv-table th:nth-child(4),
+  .iv-table td:nth-child(4) {
+    display: table-cell;
+  }
+
+  /* Job and Customer are redundant with the invoice title on a phone. */
+  .iv-table th:nth-child(2),
+  .iv-table td:nth-child(2),
+  .iv-table th:nth-child(3),
+  .iv-table td:nth-child(3),
+  .iv-table th:nth-child(5),
+  .iv-table td:nth-child(5) {
+    display: none;
+  }
+
+  .iv-table th:nth-child(1),
+  .iv-table td:nth-child(1) {
+    padding-left: 14px;
+  }
+
+  .iv-table td {
+    height: 58px;
+  }
+
+  /* The invoice cell gets the leftover width and is allowed to wrap, so
+     the table cannot push past the viewport. */
+  .iv-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .iv-table th:nth-child(4),
+  .iv-table td:nth-child(4) {
+    width: 96px;
+    text-align: right;
+  }
+
+  .iv-table th:nth-child(7),
+  .iv-table td:nth-child(7) {
+    width: 30px;
+    padding-right: 12px;
+  }
+
+  .iv-table td:nth-child(1) .q-sub {
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .iv-num {
+    font-size: 12px;
+  }
+
+  .iv-project {
+    font-size: 9.5px;
+    white-space: normal;
+  }
+}
+
+.invoices-page .panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.iv-num {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.iv-project {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+.iv-job {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+/* A quiet marker that this row has unbilled movement behind it. */
+.iv-live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pine-700);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 9.5px;
+}
+
+.iv-live-dot::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pine-600, #2f6b4f);
+  box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.14);
+}
+
+/* ------------------------------------------------------------------
+   Drawer
+   ------------------------------------------------------------------ */
+
+.iv-drawer .drawer-body {
+  padding-top: 18px;
+}
+
+/* ---- Live notice ---- */
+.iv-live {
+  display: flex;
+  gap: 11px;
+  padding: 13px 14px;
+  border-radius: 11px;
+  background: var(--pine-50, #eef6f1);
+  border: 1px solid var(--pine-200, #cfe4d8);
+}
+
+.iv-live-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--pine-600, #2f6b4f);
+  color: #fff;
+}
+
+.iv-live strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pine-800, #1d4534);
+}
+
+.iv-live p {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--pine-700, #2b5c45);
+}
+
+/* ---- The document ---- */
+.iv-doc {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.iv-doc-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.iv-party-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin-bottom: 5px;
+}
+
+.iv-party-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 2px;
+}
+
+.iv-party-line {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+.iv-party-right {
+  text-align: right;
+}
+
+.iv-doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 9px 18px;
+  background: var(--paper-50, #faf9f7);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-500);
+}
+
+.iv-doc-meta strong {
+  font-weight: 700;
+  color: var(--ink-700, #3a3a36);
+  margin-right: 3px;
+}
+
+.iv-doc-status {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--ink-700, #3a3a36);
+}
+
+/* ---- Groups ---- */
+.iv-group {
+  padding: 13px 18px 6px;
+}
+
+.iv-group + .iv-group {
+  border-top: 1px dashed var(--line);
+}
+
+.iv-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.iv-group-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.iv-group-total {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-700, #3a3a36);
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-group-changes .iv-group-head {
+  color: var(--pine-700, #2b5c45);
+}
+
+/* ---- Rows ---- */
+.iv-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+}
+
+.iv-row + .iv-row {
+  border-top: 1px solid var(--paper-100, #f2f0ec);
+}
+
+.iv-row-main {
+  min-width: 0;
+}
+
+.iv-row-desc {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-800, #26251f);
+}
+
+.iv-row-qty {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--ink-400);
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-row-src {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--pine-700, #2b5c45);
+}
+
+.iv-row-amount {
+  flex: none;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-top: 1px;
+}
+
+.iv-row-amount.ch-pos {
+  color: var(--pine-700, #2b5c45);
+}
+
+.iv-row-amount.ch-neg {
+  color: var(--rust-700, #9a4b22);
+}
+
+/* ---- Totals ---- */
+.iv-total {
+  padding: 12px 18px 16px;
+  border-top: 2px solid var(--ink-900);
+  background: var(--paper-50, #faf9f7);
+}
+
+.iv-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.iv-total-row > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iv-total-row > span:last-child {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-total-row.is-pos > span:last-child {
+  color: var(--pine-700, #2b5c45);
+  font-weight: 600;
+}
+
+.iv-total-row.is-neg > span:last-child {
+  color: var(--rust-700, #9a4b22);
+  font-weight: 600;
+}
+
+.iv-total-final {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.iv-total-final > span:first-child {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-600, #4a4a44);
+}
+
+.iv-total-value {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-total-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.iv-total-note.is-ok {
+  color: var(--pine-700, #2b5c45);
+}
+
+/* ---- Pending block: visible but unmistakably not owed ---- */
+.iv-pending {
+  margin: 0 18px 14px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px dashed var(--amber-400, #d9a441);
+  background: var(--amber-50, #fdf8ec);
+}
+
+.iv-pending-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--amber-800, #8a5c10);
+  margin-bottom: 5px;
+}
+
+.iv-pending p {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--amber-900, #6f4a0d);
+}
+
+.iv-pending strong {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.iv-doc-notes {
+  padding: 0 18px 16px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-400);
+}
+
+/* ---- Context block ---- */
+.iv-context {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.iv-context-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  font-size: 11.5px;
+}
+
+.iv-context-row + .iv-context-row {
+  border-top: 1px solid var(--line);
+}
+
+.iv-context-row > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.iv-context-row > span:last-child {
+  color: var(--ink-800, #26251f);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ---- Footer ---- */
+.iv-drawer-foot {
+  justify-content: space-between;
+}
+
+.iv-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .iv-doc-head {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .iv-party-right {
+    text-align: left;
+  }
+
+  .iv-total-value {
+    font-size: 20px;
+  }
+
+  .invoices-page .panel-foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .iv-foot-actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}

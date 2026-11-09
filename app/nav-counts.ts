@@ -14,26 +14,32 @@ export type NavCounts = {
   jobs: number;
   quotes: number;
   changes: number;
+  invoices: number;
 };
 
 export async function getNavCounts(): Promise<NavCounts> {
   try {
     const db = await getDb();
 
-    const [jobs, quotes, changes] = await Promise.all([
+    const [jobs, quotes, changes, invoices] = await Promise.all([
       db.collection("jobs").estimatedDocumentCount(),
       db.collection("quotes").estimatedDocumentCount(),
-      // Change orders are not modelled yet; the collection may not exist.
       db
         .collection("changeOrders")
         .estimatedDocumentCount()
         .catch(() => 0),
+      // One invoice per job; the collection does not exist before anything
+      // is stored, and Mongo treats that as zero rather than an error.
+      db
+        .collection("invoices")
+        .estimatedDocumentCount()
+        .catch(() => 0),
     ]);
 
-    return { jobs, quotes, changes };
+    return { jobs, quotes, changes, invoices };
   } catch {
     // Counts are decorative: if the database is unreachable the nav still
     // renders, just without badges.
-    return { jobs: 0, quotes: 0, changes: 0 };
+    return { jobs: 0, quotes: 0, changes: 0, invoices: 0 };
   }
 }

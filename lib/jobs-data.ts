@@ -33,7 +33,7 @@ export type NavItem = {
    * database at runtime; an item without a `countKey` never shows a badge.
    * A count of 0 hides the badge entirely.
    */
-  countKey?: "jobs" | "quotes" | "changes";
+  countKey?: "jobs" | "quotes" | "changes" | "invoices";
   href: string;
 };
 
@@ -50,7 +50,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Records",
     items: [
       { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "/changes" },
-      { id: "invoices", label: "Invoices", icon: ReceiptText, href: "#" },
+      { id: "invoices", label: "Invoices", icon: ReceiptText, countKey: "invoices", href: "/invoices" },
       { id: "audit", label: "Audit log", icon: ScrollText, href: "#" },
       { id: "settings", label: "Settings", icon: Settings, href: "#" },
     ],
