@@ -1399,3 +1399,48 @@ ul { margin: 0; padding: 0; }
 .summary-name { font-size: 12px; color: var(--ink-2); }
 .summary-val { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .summary-total .summary-name { font-weight: 600; color: var(--ink); }
+
+/* Load / save feedback */
+.jobs-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 11px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
+  border-radius: 12px;
+}
+.jobs-banner .ico { flex: none; color: var(--red); }
+
+.drawer-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
+  border-radius: 9px;
+}
+.drawer-error .ico { flex: none; color: var(--red); }
+
+/* Inline, per-field validation message shown under an input. */
+.field-error {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--red);
+}
+
+.field-input[aria-invalid="true"],
+.drawer-title-input[aria-invalid="true"] {
+  border-color: var(--red-line);
+  background: var(--red-soft);
+}

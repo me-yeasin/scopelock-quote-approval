@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
-  ArrowUpRight,
   Pencil,
   Plus,
   Trash2,
@@ -12,73 +11,144 @@ import {
 } from "lucide-react";
 import AppShell, { Icon } from "../app-shell";
 import {
-  JOBS,
   STATUS_LABEL,
   FILTERS,
   type Filter,
   type Job,
   type StatusKey,
 } from "../../lib/jobs-data";
-
-/* ------------------------------------------------------------------
-   Helpers
-   ------------------------------------------------------------------ */
-function initialsFrom(name: string) {
-  return name
-    .replace(/\./g, "")
-    .split(/\s+/)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
+import {
+  getJobs,
+  updateJob,
+  deleteJob,
+  type DeleteJobResult,
+  type UpdateJobResult,
+  type JobFieldErrors,
+} from "./actions";
 
 const SUMMARY_ORDER: StatusKey[] = ["approved", "awaiting", "inprogress", "draft"];
 
+/** How the drawer was opened — decides its initial mode. */
+type DrawerIntent = "edit" | "delete";
+
+type EditableJob = Pick<Job, "title" | "customer" | "city" | "status">;
+
+function toEditable(job: Job): EditableJob {
+  return {
+    title: job.title,
+    customer: job.customer,
+    city: job.city,
+    status: job.status,
+  };
+}
+
 /* ------------------------------------------------------------------
-   Job drawer — view / edit / delete a single job (UI only)
+   Job drawer — view / edit / delete a single job
    Keyed by job id so it remounts and resets its draft per job.
    ------------------------------------------------------------------ */
 function JobDrawer({
   job,
+  intent,
   onClose,
   onSave,
   onDelete,
 }: {
   job: Job;
+  intent: DrawerIntent;
   onClose: () => void;
-  onSave: (next: Job) => void;
-  onDelete: (id: string) => void;
+  onSave: (
+    next: EditableJob,
+    expectedUpdatedAt: string | undefined,
+  ) => Promise<UpdateJobResult>;
+  onDelete: () => Promise<DeleteJobResult>;
 }) {
-  const [draft, setDraft] = useState<Job>(job);
-  const [confirming, setConfirming] = useState(false);
+  const [draft, setDraft] = useState<EditableJob>(() => toEditable(job));
+  // "delete" starts in the confirm step; "edit" starts on the form.
+  const [confirming, setConfirming] = useState(intent === "delete");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<JobFieldErrors>({});
   const titleRef = useRef<HTMLInputElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+
+  const original = useMemo(() => toEditable(job), [job]);
+  const dirty =
+    draft.title !== original.title ||
+    draft.customer !== original.customer ||
+    draft.city !== original.city ||
+    draft.status !== original.status;
 
   useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
-
-  const update = (patch: Partial<Job>) => setDraft((prev) => ({ ...prev, ...patch }));
-
-  const handleSave = () => {
-    onSave({
-      ...draft,
-      initials: initialsFrom(draft.customer),
-    });
-  };
-
-  const handleDelete = () => {
-    if (!confirming) {
-      setConfirming(true);
-      return;
+    if (confirming) {
+      cancelDeleteRef.current?.focus();
+    } else {
+      titleRef.current?.focus();
     }
-    onDelete(job.id);
+  }, [confirming]);
+
+  // Escape cancels the delete confirmation first, then closes the drawer.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        if (confirming) setConfirming(false);
+        else onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [confirming, onClose]);
+
+  const update = (patch: Partial<EditableJob>) => {
+    setDraft((prev) => ({ ...prev, ...patch }));
+    // Clear a field error as soon as the user edits that field.
+    setFields((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof EditableJob)[]) delete next[key];
+      return next;
+    });
+    setError(null);
   };
+
+  const handleSave = async () => {
+    if (saving || deleting || !dirty) return;
+    setError(null);
+    setFields({});
+    setSaving(true);
+    const result = await onSave(draft, job.updatedAt);
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error);
+      if (result.fields) setFields(result.fields);
+    }
+    // On success the parent closes the drawer.
+  };
+
+  const handleDelete = async () => {
+    if (deleting) return;
+    setError(null);
+    setDeleting(true);
+    const result = await onDelete();
+    setDeleting(false);
+    if (!result.ok) {
+      setError(result.error);
+      setConfirming(false);
+    }
+    // On success the parent closes the drawer.
+  };
+
+  const busy = saving || deleting;
 
   return (
     <>
       <div className="drawer-scrim" aria-hidden="true" onClick={onClose} />
-      <aside className="job-drawer is-open" role="dialog" aria-modal="true" aria-label={`Job ${job.id}`}>
+      <aside
+        className="job-drawer is-open"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Job ${job.id}`}
+      >
         <header className="drawer-head">
           <div className="drawer-head-copy">
             <p className="drawer-eyebrow">Job {job.id}</p>
@@ -87,10 +157,24 @@ function JobDrawer({
               className="drawer-title-input"
               value={draft.title}
               aria-label="Job title"
+              aria-invalid={fields.title ? true : undefined}
+              aria-describedby={fields.title ? "jd-title-error" : undefined}
+              disabled={busy}
               onChange={(event) => update({ title: event.target.value })}
             />
+            {fields.title ? (
+              <p className="field-error" id="jd-title-error" role="alert">
+                {fields.title}
+              </p>
+            ) : null}
           </div>
-          <button className="icon-btn" type="button" aria-label="Close" onClick={onClose}>
+          <button
+            className="icon-btn"
+            type="button"
+            aria-label="Close"
+            disabled={busy}
+            onClick={onClose}
+          >
             <Icon icon={X} />
           </button>
         </header>
@@ -104,8 +188,16 @@ function JobDrawer({
               id="jd-customer"
               className="field-input"
               value={draft.customer}
+              aria-invalid={fields.customer ? true : undefined}
+              aria-describedby={fields.customer ? "jd-customer-error" : undefined}
+              disabled={busy}
               onChange={(event) => update({ customer: event.target.value })}
             />
+            {fields.customer ? (
+              <p className="field-error" id="jd-customer-error" role="alert">
+                {fields.customer}
+              </p>
+            ) : null}
           </div>
 
           <div className="field">
@@ -116,8 +208,16 @@ function JobDrawer({
               id="jd-city"
               className="field-input"
               value={draft.city}
+              aria-invalid={fields.city ? true : undefined}
+              aria-describedby={fields.city ? "jd-city-error" : undefined}
+              disabled={busy}
               onChange={(event) => update({ city: event.target.value })}
             />
+            {fields.city ? (
+              <p className="field-error" id="jd-city-error" role="alert">
+                {fields.city}
+              </p>
+            ) : null}
           </div>
 
           <div className="field">
@@ -129,6 +229,7 @@ function JobDrawer({
                 id="jd-status"
                 className="field-input"
                 value={draft.status}
+                disabled={busy}
                 onChange={(event) => update({ status: event.target.value as StatusKey })}
               >
                 {Object.entries(STATUS_LABEL).map(([value, label]) => (
@@ -142,70 +243,85 @@ function JobDrawer({
 
           <div className="field-grid">
             <div className="field">
-              <label className="field-label" htmlFor="jd-quote">
-                Quote
-              </label>
-              <input
-                id="jd-quote"
-                className="field-input num"
-                value={draft.quote}
-                onChange={(event) => update({ quote: event.target.value })}
-              />
+              <span className="field-label">Quote</span>
+              <span className="field-static num">{job.quote}</span>
             </div>
             <div className="field">
-              <label className="field-label" htmlFor="jd-total">
-                Total
-              </label>
-              <input
-                id="jd-total"
-                className="field-input num"
-                value={draft.total}
-                onChange={(event) => update({ total: event.target.value })}
-              />
+              <span className="field-label">Total</span>
+              <span className="field-static num">{job.total}</span>
             </div>
           </div>
 
           <div className="field">
             <span className="field-label">Change order</span>
-            <span className={`change ${draft.changeTone}`}>{draft.change}</span>
+            <span className={`change ${job.changeTone}`}>{job.change}</span>
           </div>
 
           <div className="field">
             <span className="field-label">Last updated</span>
-            <span className="field-static">{draft.updated}</span>
+            <span className="field-static">{job.updated}</span>
           </div>
+
+          {error ? (
+            <div className="drawer-error" role="alert">
+              <Icon icon={X} className="ico ico-sm" />
+              {error}
+            </div>
+          ) : null}
         </div>
 
         <footer className="drawer-foot">
           {confirming ? (
             <div className="confirm-bar" role="alert">
-              <span className="confirm-text">Delete this job?</span>
+              <span className="confirm-text">
+                Delete <strong>{job.title}</strong>? This cannot be undone.
+              </span>
               <div className="confirm-actions">
                 <button
+                  ref={cancelDeleteRef}
                   className="btn btn-ghost btn-sm"
                   type="button"
+                  disabled={deleting}
                   onClick={() => setConfirming(false)}
                 >
                   Cancel
                 </button>
-                <button className="btn btn-danger btn-sm" type="button" onClick={handleDelete}>
-                  Delete
+                <button
+                  className="btn btn-danger btn-sm"
+                  type="button"
+                  disabled={deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? "Deleting…" : "Delete"}
                 </button>
               </div>
             </div>
           ) : (
-            <button className="btn btn-danger" type="button" onClick={handleDelete}>
+            <button
+              className="btn btn-danger"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setError(null);
+                setConfirming(true);
+              }}
+            >
               <Icon icon={Trash2} className="ico ico-sm" />
               Delete job
             </button>
           )}
 
           <div className="drawer-foot-right">
-            <button className="btn btn-ghost" type="button" onClick={onClose}>
+            <button className="btn btn-ghost" type="button" disabled={busy} onClick={onClose}>
               Cancel
             </button>
-            <button className="btn btn-primary" type="button" onClick={handleSave}>
-              Save changes
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={busy || !dirty}
+              onClick={handleSave}
+            >
+              {saving ? "Saving…" : dirty ? "Save changes" : "Saved"}
             </button>
           </div>
         </footer>
@@ -218,11 +334,32 @@ function JobDrawer({
    Jobs screen
    ------------------------------------------------------------------ */
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>(JOBS);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ id: string; intent: DrawerIntent } | null>(
+    null,
+  );
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const result = await getJobs();
+      if (!active) return;
+      if (result.ok) {
+        setJobs(result.jobs);
+      } else {
+        setLoadError(result.error);
+      }
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const visibleJobs = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -250,16 +387,41 @@ export default function JobsPage() {
     return base;
   }, [jobs]);
 
-  const selected = jobs.find((job) => job.id === selectedId) ?? null;
+  const selectedJob = selected
+    ? (jobs.find((job) => (job.objectId ?? job.id) === selected.id) ?? null)
+    : null;
 
-  const handleSave = (next: Job) => {
-    setJobs((prev) => prev.map((job) => (job.id === next.id ? next : job)));
-    setSelectedId(null);
+  // Writes target the stable storage id; the reference is only a fallback for
+  // documents that predate it.
+  const targetKey = (job: Job) => job.objectId ?? job.id;
+
+  const handleSave = async (
+    next: EditableJob,
+    expectedUpdatedAt: string | undefined,
+  ): Promise<UpdateJobResult> => {
+    if (!selectedJob) return { ok: false, error: "No job selected." };
+    const result = await updateJob(targetKey(selectedJob), {
+      ...next,
+      expectedUpdatedAt,
+    });
+    if (result.ok) {
+      setJobs((prev) =>
+        prev.map((job) => (targetKey(job) === targetKey(selectedJob) ? result.job : job)),
+      );
+      setSelected(null);
+    }
+    return result;
   };
 
-  const handleDelete = (id: string) => {
-    setJobs((prev) => prev.filter((job) => job.id !== id));
-    setSelectedId(null);
+  const handleDelete = async (): Promise<DeleteJobResult> => {
+    if (!selectedJob) return { ok: false, error: "No job selected." };
+    const key = targetKey(selectedJob);
+    const result = await deleteJob(key);
+    if (result.ok) {
+      setJobs((prev) => prev.filter((job) => targetKey(job) !== key));
+      setSelected(null);
+    }
+    return result;
   };
 
   return (
@@ -291,6 +453,13 @@ export default function JobsPage() {
             </Link>
           </div>
         </section>
+
+        {loadError ? (
+          <div className="jobs-banner" role="alert">
+            <Icon icon={X} className="ico ico-sm" />
+            <span>Could not load jobs — {loadError}</span>
+          </div>
+        ) : null}
 
         <div className="content">
           <section className="panel panel-jobs">
@@ -342,81 +511,92 @@ export default function JobsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleJobs.map((job) => (
-                    <tr key={job.id} data-status={job.status}>
-                      <td className="cell-job">
-                        <button
-                          type="button"
-                          className="job-open"
-                          onClick={() => setSelectedId(job.id)}
-                        >
-                          <span className="job-title">{job.title}</span>
-                          <span className="job-sub">
-                            #{job.id} <span className="sep-dot" /> {job.city}
-                          </span>
-                        </button>
-                      </td>
-                      <td>
-                        <span className="customer">
-                          <span className="avatar">{job.initials}</span>
-                          {job.customer}
-                        </span>
-                      </td>
-                      <td className="t-right num">{job.quote}</td>
-                      <td className="t-right">
-                        <span className={`change ${job.changeTone}`}>{job.change}</span>
-                      </td>
-                      <td className="t-right">
-                        <span className="total num">{job.total}</span>
-                      </td>
-                      <td>
-                        <span
-                          className={`status status-${
-                            job.status === "inprogress" ? "progress" : job.status
-                          }`}
-                        >
-                          <span className="status-dot" />
-                          {STATUS_LABEL[job.status]}
-                        </span>
-                      </td>
-                      <td className="t-right cell-time">{job.updated}</td>
-                      <td className="t-right">
-                        <div className="row-actions">
-                          <button
-                            type="button"
-                            className="icon-btn-mini"
-                            aria-label={`Edit ${job.title}`}
-                            onClick={() => setSelectedId(job.id)}
-                          >
-                            <Icon icon={Pencil} className="ico ico-sm" />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn-mini danger"
-                            aria-label={`Delete ${job.title}`}
-                            onClick={() => {
-                              setSelectedId(job.id);
-                            }}
-                          >
-                            <Icon icon={Trash2} className="ico ico-sm" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {visibleJobs.length === 0 ? (
+                  {loading ? (
                     <tr className="empty-row">
-                      <td colSpan={8}>No jobs match this filter.</td>
+                      <td colSpan={8}>Loading jobs…</td>
                     </tr>
-                  ) : null}
+                  ) : visibleJobs.length === 0 ? (
+                    <tr className="empty-row">
+                      <td colSpan={8}>
+                        {jobs.length === 0
+                          ? "No jobs yet. Create your first job to get started."
+                          : "No jobs match this filter."}
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleJobs.map((job) => {
+                      const key = targetKey(job);
+                      return (
+                        <tr key={key} data-status={job.status}>
+                          <td className="cell-job">
+                            <button
+                              type="button"
+                              className="job-open"
+                              onClick={() => setSelected({ id: key, intent: "edit" })}
+                            >
+                              <span className="job-title">{job.title}</span>
+                              <span className="job-sub">
+                                #{job.id} <span className="sep-dot" /> {job.city}
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <span className="customer">
+                              <span className="avatar">{job.initials}</span>
+                              {job.customer}
+                            </span>
+                          </td>
+                          <td className="t-right num">{job.quote}</td>
+                          <td className="t-right">
+                            <span className={`change ${job.changeTone}`}>{job.change}</span>
+                          </td>
+                          <td className="t-right">
+                            <span className="total num">{job.total}</span>
+                          </td>
+                          <td>
+                            <span
+                              className={`status status-${
+                                job.status === "inprogress" ? "progress" : job.status
+                              }`}
+                            >
+                              <span className="status-dot" />
+                              {STATUS_LABEL[job.status]}
+                            </span>
+                          </td>
+                          <td className="t-right cell-time">{job.updated}</td>
+                          <td className="t-right">
+                            <div className="row-actions">
+                              <button
+                                type="button"
+                                className="icon-btn-mini"
+                                aria-label={`Edit ${job.title}`}
+                                title="Edit"
+                                onClick={() => setSelected({ id: key, intent: "edit" })}
+                              >
+                                <Icon icon={Pencil} className="ico ico-sm" />
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-btn-mini danger"
+                                aria-label={`Delete ${job.title}`}
+                                title="Delete"
+                                onClick={() => setSelected({ id: key, intent: "delete" })}
+                              >
+                                <Icon icon={Trash2} className="ico ico-sm" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
             <div className="panel-foot">
               <span className="foot-note">
-                Showing {visibleJobs.length} of {jobs.length} jobs
+                Showing {loading ? "…" : visibleJobs.length} of {jobs.length} jobs
               </span>
               <Link href="/jobs/new" className="link">
                 New job
@@ -452,11 +632,12 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {selected ? (
+      {selectedJob && selected ? (
         <JobDrawer
-          key={selected.id}
-          job={selected}
-          onClose={() => setSelectedId(null)}
+          key={selectedJob.objectId ?? selectedJob.id}
+          job={selectedJob}
+          intent={selected.intent}
+          onClose={() => setSelected(null)}
           onSave={handleSave}
           onDelete={handleDelete}
         />
