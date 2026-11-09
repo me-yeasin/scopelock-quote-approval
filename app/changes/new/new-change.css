@@ -1,0 +1,385 @@
+/* ============================================================
+   New change order — form layout.
+
+   Two columns on a wide screen: the form on the left, the running
+   effect on the right so the total is visible while pricing. Collapses
+   to one column with the effect block first, because on a phone the
+   number that matters should not be below a long form.
+   ============================================================ */
+
+.nc-page { padding-bottom: 28px; }
+
+.nc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.nc-back:hover { color: var(--pine-700); }
+
+.nc-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nc-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.nc-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ---------- Panels ---------- */
+
+.nc-panel { overflow: hidden; }
+
+.nc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.nc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nc-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  /* No resize handle on textareas: it fights the panel layout. */
+  transition: border-color 0.12s var(--ease);
+}
+
+.nc-input:focus-visible {
+  outline: 2px solid var(--pine-700);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.nc-textarea {
+  min-height: 96px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.nc-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+/* ---------- Change-type chips ---------- */
+
+.nc-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nc-kind {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.12s var(--ease), border-color 0.12s var(--ease),
+    color 0.12s var(--ease);
+}
+
+.nc-kind:hover { border-color: var(--line); background: var(--paper-2); }
+
+.nc-kind.is-active {
+  background: var(--pine-900);
+  border-color: var(--pine-900);
+  color: #fff;
+}
+
+.nc-kind:focus-visible {
+  outline: 2px solid var(--pine-700);
+  outline-offset: 2px;
+}
+
+/* ---------- Line items ---------- */
+
+.nc-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.nc-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.nc-line:first-child { border-top: 0; }
+
+.nc-line-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nc-line-num {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-right: auto;
+}
+
+.nc-dir {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--paper-2);
+  border: 1px solid var(--line-soft);
+  gap: 2px;
+}
+
+.nc-dir-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nc-dir-btn.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.nc-dir-btn:focus-visible {
+  outline: 2px solid var(--pine-700);
+  outline-offset: 1px;
+}
+
+.nc-line-remove { color: var(--faint); }
+.nc-line-remove:hover { color: var(--red); }
+
+.nc-line-bottom {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.nc-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nc-mini > span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
+}
+
+.nc-line-total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.nc-line-total > span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.nc-line-total > strong {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 38px;
+}
+
+/* ---------- Side panel ---------- */
+
+.nc-side-panel { overflow: hidden; }
+
+.nc-impact { padding: 14px 16px 16px; }
+
+.nc-side-note {
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.nc-side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.nc-side-actions .btn { justify-content: center; }
+
+.nc-side-hint {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  text-align: center;
+}
+
+/* ---------- Steps card ---------- */
+
+.nc-side-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-2);
+}
+
+.nc-side-card h3 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.nc-steps {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.nc-steps li::marker {
+  color: var(--pine-700);
+  font-weight: 700;
+}
+
+.nc-steps strong {
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+/* ---------- Wide screens ---------- */
+
+@media (min-width: 900px) {
+  .nc-grid {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .nc-main { flex: 1 1 auto; }
+  .nc-side { flex: 0 0 300px; position: sticky; top: 0; }
+
+  .nc-body { padding: 18px; }
+  .nc-line { padding: 16px 18px; }
+}
+
+@media (max-width: 899px) {
+  /* On a phone the effect block leads: the number drives the decision,
+     and scrolling past a whole form to find it would be wrong. */
+  .nc-grid { flex-direction: column; }
+  .nc-side { order: -1; }
+
+  .nc-line-bottom {
+    grid-template-columns: 60px 1fr;
+  }
+
+  .nc-line-total {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .nc-line-total > strong { line-height: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nc-input, .nc-kind { transition: none; }
+}
+
+/* ---------- Touch devices ----------
+   iOS Safari zooms the whole page when a focused input is under 16px, which
+   throws the layout off and leaves the user scrolled sideways. Bumping the
+   text size only on touch pointers avoids that without enlarging the
+   desktop form. */
+@media (pointer: coarse) {
+  .nc-input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .nc-textarea { min-height: 110px; }
+
+  /* Chips and direction toggles also need a real thumb target. */
+  .nc-kind {
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .nc-dir-btn {
+    min-height: 32px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+
+  .nc-line-remove {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .nc-line-total > strong { line-height: 44px; }
+}

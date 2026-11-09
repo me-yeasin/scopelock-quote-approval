@@ -49,7 +49,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Records",
     items: [
-      { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "#" },
+      { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "/changes" },
       { id: "invoices", label: "Invoices", icon: ReceiptText, href: "#" },
       { id: "audit", label: "Audit log", icon: ScrollText, href: "#" },
       { id: "settings", label: "Settings", icon: Settings, href: "#" },
