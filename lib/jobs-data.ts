@@ -28,7 +28,12 @@ export type NavItem = {
   id: string;
   label: string;
   icon: LucideIcon;
-  badge?: number;
+  /**
+   * Which live total this item shows as a badge. Counts come from the
+   * database at runtime; an item without a `countKey` never shows a badge.
+   * A count of 0 hides the badge entirely.
+   */
+  countKey?: "jobs" | "quotes" | "changes";
   href: string;
 };
 
@@ -37,14 +42,14 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Workspace",
     items: [
       { id: "overview", label: "Overview", icon: LayoutDashboard, href: "/" },
-      { id: "jobs", label: "Jobs", icon: Briefcase, badge: 3, href: "/jobs" },
-      { id: "quotes", label: "Quotes", icon: FileText, badge: 2, href: "/quotes" },
+      { id: "jobs", label: "Jobs", icon: Briefcase, countKey: "jobs", href: "/jobs" },
+      { id: "quotes", label: "Quotes", icon: FileText, countKey: "quotes", href: "/quotes" },
     ],
   },
   {
     label: "Records",
     items: [
-      { id: "changes", label: "Change orders", icon: FileDiff, badge: 1, href: "#" },
+      { id: "changes", label: "Change orders", icon: FileDiff, countKey: "changes", href: "#" },
       { id: "invoices", label: "Invoices", icon: ReceiptText, href: "#" },
       { id: "audit", label: "Audit log", icon: ScrollText, href: "#" },
       { id: "settings", label: "Settings", icon: Settings, href: "#" },

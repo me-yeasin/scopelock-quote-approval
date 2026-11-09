@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useState, type ReactNode, type RefObject } from "react";
 import {
   Bell,
@@ -12,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV_GROUPS } from "../lib/jobs-data";
+import { getNavCounts, type NavCounts } from "./nav-counts";
 
 /* ------------------------------------------------------------------
    Icon helper — keeps every glyph decorative + consistently sized
@@ -49,6 +51,23 @@ export default function AppShell({
   searchRef,
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Live totals for the nav badges. `null` until loaded, so no badge flashes
+  // on first paint; a count of 0 renders no badge at all.
+  const [counts, setCounts] = useState<NavCounts | null>(null);
+  // Re-fetch the totals whenever the user moves between screens, so a
+  // create or delete is reflected in the badges without a reload.
+  const pathname = usePathname();
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const result = await getNavCounts();
+      if (active) setCounts(result);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -117,7 +136,14 @@ export default function AppShell({
                     <>
                       <Icon icon={item.icon} className="ico nav-ico" />
                       <span className="nav-label">{item.label}</span>
-                      {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
+                      {(() => {
+                        const count = item.countKey ? counts?.[item.countKey] ?? 0 : 0;
+                        return count > 0 ? (
+                          <span className="nav-badge">
+                            {count > 99 ? "99+" : count}
+                          </span>
+                        ) : null;
+                      })()}
                     </>
                   );
 
