@@ -1,6 +1,7 @@
 "use server";
 
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "@/lib/ownership";
 
 /* ------------------------------------------------------------------
    Sidebar badge counts.
@@ -21,18 +22,25 @@ export async function getNavCounts(): Promise<NavCounts> {
   try {
     const db = await getDb();
 
+    /*
+      `countDocuments` rather than `estimatedDocumentCount`: the estimate
+      cannot be filtered, and these badges must count only the signed-in
+      account's documents. The owner index keeps these counts cheap.
+    */
+    const ownerId = await requireOwnerId();
+
     const [jobs, quotes, changes, invoices] = await Promise.all([
-      db.collection("jobs").estimatedDocumentCount(),
-      db.collection("quotes").estimatedDocumentCount(),
+      db.collection("jobs").countDocuments({ ownerId }),
+      db.collection("quotes").countDocuments({ ownerId }),
       db
         .collection("changeOrders")
-        .estimatedDocumentCount()
+        .countDocuments({ ownerId })
         .catch(() => 0),
       // One invoice per job; the collection does not exist before anything
       // is stored, and Mongo treats that as zero rather than an error.
       db
         .collection("invoices")
-        .estimatedDocumentCount()
+        .countDocuments({ ownerId })
         .catch(() => 0),
     ]);
 

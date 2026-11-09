@@ -1,6 +1,7 @@
 import { ObjectId, type Db } from "mongodb";
 
 import { getDb } from "./db";
+import { requireOwnerId } from "./ownership";
 
 /* ------------------------------------------------------------------
    Notification read state.
@@ -26,8 +27,16 @@ import { getDb } from "./db";
 
 const COLLECTION = "notificationReads";
 
-/** Placeholder workspace scope until accounts exist. */
-const SCOPE = "default";
+/**
+ * Read state is now per account.
+ *
+ * It used to be a single `default` scope because there were no accounts. Now
+ * each user's reads must be their own: sharing the scope would mean one user
+ * opening a notification silently cleared it for everyone else.
+ */
+async function currentScope(): Promise<string> {
+  return requireOwnerId();
+}
 
 type ReadRecord = {
   _id?: ObjectId;
@@ -71,7 +80,9 @@ export async function getReadVersions(): Promise<Map<string, string>> {
   const db = await getDb();
   await ensureIndexes(db);
 
-  const docs = await notificationReadsCollection(db).find({ scope: SCOPE }).toArray();
+  const docs = await notificationReadsCollection(db)
+    .find({ scope: await currentScope() })
+    .toArray();
   return new Map(docs.map((doc) => [doc.key, doc.version]));
 }
 
@@ -83,7 +94,7 @@ export async function markNotificationRead(key: string, version: string): Promis
   await ensureIndexes(db);
 
   await notificationReadsCollection(db).updateOne(
-    { scope: SCOPE, key },
+    { scope: await currentScope(), key },
     { $set: { version, readAt: new Date().toISOString() } },
     { upsert: true },
   );
@@ -99,10 +110,11 @@ export async function markAllNotificationsRead(
   await ensureIndexes(db);
 
   const now = new Date().toISOString();
+  const scopeForBatch = await currentScope();
   await notificationReadsCollection(db).bulkWrite(
     entries.map((entry) => ({
       updateOne: {
-        filter: { scope: SCOPE, key: entry.key },
+        filter: { scope: scopeForBatch, key: entry.key },
         update: { $set: { version: entry.version, readAt: now } },
         upsert: true,
       },
@@ -123,5 +135,5 @@ export async function pruneReadRecords(liveKeys: string[]): Promise<void> {
   // Keep the delete cheap and safe: only prune when we actually have a feed.
   if (liveKeys.length === 0) return;
 
-  await collection.deleteMany({ scope: SCOPE, key: { $nin: liveKeys } });
+  await collection.deleteMany({ scope: await currentScope(), key: { $nin: liveKeys } });
 }

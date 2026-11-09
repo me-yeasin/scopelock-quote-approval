@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "./ownership";
 
 import { changeOrdersCollection } from "./changes";
 import { invoicesCollection } from "./invoices";
@@ -51,11 +52,12 @@ function today() {
 
 export async function getNotifications(): Promise<NotificationFeed> {
   const db = await getDb();
+  const ownerId = await requireOwnerId();
 
   const [quotes, changes, invoices] = await Promise.all([
-    quotesCollection(db).find({}).toArray(),
-    changeOrdersCollection(db).find({}).toArray(),
-    invoicesCollection(db).find({}).toArray(),
+    quotesCollection(db).find({ ownerId }).toArray(),
+    changeOrdersCollection(db).find({ ownerId }).toArray(),
+    invoicesCollection(db).find({ ownerId }).toArray(),
   ]);
 
   const items: Notification[] = [];

@@ -3,6 +3,7 @@ import type { Db } from "mongodb";
 import { changeOrdersCollection } from "./changes";
 import { invoicesCollection } from "./invoices";
 import { quotesCollection } from "./quotes";
+import { requireOwnerId } from "./ownership";
 
 /* ------------------------------------------------------------------
    Audit log — the read side.
@@ -139,7 +140,7 @@ export async function getAuditEntries(query: AuditQuery = {}): Promise<AuditEntr
 
   const jobFilter = query.jobReference ? { jobReference: query.jobReference } : {};
   const sinceFilter = query.since ? { updatedAt: { $gte: query.since } } : {};
-  const filter = { ...jobFilter, ...sinceFilter };
+  const filter = { ...jobFilter, ...sinceFilter, ownerId: await requireOwnerId() };
 
   const [quotes, changes, invoices] = await Promise.all([
     quotesCollection(db)
@@ -334,12 +335,14 @@ export function summarise(entries: AuditEntry[]): AuditSummary {
 export async function getAuditJobs(): Promise<{ jobReference: string; jobTitle: string }[]> {
   const db = await import("./db").then((mod) => mod.getDb());
 
+  const ownerId = await requireOwnerId();
+
   const [fromQuotes, fromChanges] = await Promise.all([
     quotesCollection(db)
-      .find({}, { projection: { jobReference: 1, title: 1 } })
+      .find({ ownerId }, { projection: { jobReference: 1, title: 1 } })
       .toArray(),
     changeOrdersCollection(db)
-      .find({}, { projection: { jobReference: 1, jobTitle: 1 } })
+      .find({ ownerId }, { projection: { jobReference: 1, jobTitle: 1 } })
       .toArray(),
   ]);
 

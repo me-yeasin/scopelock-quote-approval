@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "@/lib/ownership";
 import { quotesCollection, type QuoteDoc } from "@/lib/quotes";
 import {
   CHANGE_KINDS,
@@ -112,7 +113,7 @@ function mapDocToChange(doc: ChangeDoc): ChangeOrder {
 async function refreshExpired() {
   const { expireStaleChanges } = await import("@/lib/changes");
   const db = await getDb();
-  const expired = await expireStaleChanges(db);
+  const expired = await expireStaleChanges(db, await requireOwnerId());
   return expired;
 }
 
@@ -129,7 +130,7 @@ export async function getChanges(): Promise<GetChangesResult> {
     await refreshExpired();
 
     const docs = await changeOrdersCollection(db)
-      .find({})
+      .find({ ownerId: await requireOwnerId() })
       .sort({ createdAt: -1 })
       .limit(200)
       .toArray();
@@ -156,14 +157,16 @@ export async function getEligibleJobs(): Promise<
   try {
     const db = await getDb();
     const docs = await quotesCollection(db)
-      .find({ status: "approved" })
+      .find({ ownerId: await requireOwnerId(), status: "approved" })
       .sort({ decidedAt: -1 })
       .limit(100)
       .toArray();
 
     const jobs: EligibleJob[] = [];
     for (const quote of docs) {
-      const job = await db.collection("jobs").findOne({ reference: quote.jobReference });
+      const job = await db
+        .collection("jobs")
+        .findOne({ reference: quote.jobReference, ownerId: quote.ownerId });
       const title = (job?.job?.title as string | undefined) ?? quote.title;
 
       jobs.push({
@@ -191,7 +194,7 @@ export async function getChange(reference: string): Promise<ChangeActionResult> 
 
   try {
     const db = await getDb();
-    const doc = await changeOrdersCollection(db).findOne({ reference });
+    const doc = await changeOrdersCollection(db).findOne({ reference, ownerId: await requireOwnerId() });
     if (!doc) return { ok: false, error: "That change order no longer exists." };
     return { ok: true, change: mapDocToChange(doc) };
   } catch (error) {
@@ -298,12 +301,15 @@ export async function createChange(input: ChangeInput): Promise<ChangeActionResu
     const db = await getDb();
     await ensureChangeIndexes(db);
 
+    const ownerId = await requireOwnerId();
+
     // The job must exist and carry an approved quote to serve as baseline.
-    const job = await db.collection("jobs").findOne({ reference: jobReference });
+    const job = await db.collection("jobs").findOne({ reference: jobReference, ownerId });
     if (!job) return { ok: false, error: "That job no longer exists." };
 
     const quote = await quotesCollection(db).findOne({
       jobReference,
+      ownerId,
       status: "approved",
     });
     if (!quote) {
@@ -324,7 +330,7 @@ export async function createChange(input: ChangeInput): Promise<ChangeActionResu
     const session = db.client.startSession();
     try {
       await session.withTransaction(async () => {
-        reference = await nextChangeReference(db, now);
+        reference = await nextChangeReference(db, now, ownerId);
 
         const doc: ChangeDoc = {
           _id,
@@ -332,6 +338,7 @@ export async function createChange(input: ChangeInput): Promise<ChangeActionResu
           jobReference,
           jobId: job._id,
           quoteReference: quote.reference,
+          ownerId,
           // A new order is a draft: nothing is billable and the customer
           // has not seen it until it is sent.
           status: "draft",
@@ -420,7 +427,7 @@ export async function sendChange(
     const db = await getDb();
     const nowIso = new Date().toISOString();
 
-    const existing = await changeOrdersCollection(db).findOne({ reference });
+    const existing = await changeOrdersCollection(db).findOne({ reference, ownerId: await requireOwnerId() });
     if (!existing) return { ok: false, error: "That change order no longer exists." };
 
     if (existing.status === "approved" || existing.status === "rejected") {
@@ -433,7 +440,7 @@ export async function sendChange(
     const firstSend = !existing.link;
 
     const doc = await changeOrdersCollection(db).findOneAndUpdate(
-      { reference, status: { $in: ["draft", "sent"] } },
+      { reference, ownerId: existing.ownerId, status: { $in: ["draft", "sent"] } },
       {
         $set: {
           status: "sent",
@@ -462,7 +469,7 @@ export async function sendChange(
     if (!doc) return { ok: false, error: "This change order can no longer be sent." };
 
     // The pending figure on the quote must reflect the newly sent order.
-    const quote = await quotesCollection(db).findOne({ jobReference: doc.jobReference });
+    const quote = await quotesCollection(db).findOne({ jobReference: doc.jobReference, ownerId: doc.ownerId });
     if (quote) {
       const breakdown = await computeJobTotal(
         db,
@@ -506,6 +513,9 @@ async function decide(
     const db = await getDb();
     await ensureChangeIndexes(db);
 
+    const ownerId = await requireOwnerId();
+    filter.ownerId = ownerId;
+
     const now = new Date();
     const nowIso = now.toISOString();
     const trimmed = (reason ?? "").trim().slice(0, 500);
@@ -519,7 +529,7 @@ async function decide(
       return { ok: false, error: "This change order is not awaiting a decision." };
     }
 
-    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference });
+    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference, ownerId: existing.ownerId });
     const baseline = quote?.subtotalCents ?? existing.baselineCents ?? 0;
 
     let updated: ChangeDoc | null = null;
@@ -619,7 +629,7 @@ export async function withdrawChange(reference: string): Promise<ChangeActionRes
     const db = await getDb();
     const nowIso = new Date().toISOString();
 
-    const existing = await changeOrdersCollection(db).findOne({ reference });
+    const existing = await changeOrdersCollection(db).findOne({ reference, ownerId: await requireOwnerId() });
     if (!existing) return { ok: false, error: "That change order no longer exists." };
     if (existing.status === "approved") {
       return {
@@ -631,7 +641,7 @@ export async function withdrawChange(reference: string): Promise<ChangeActionRes
       return { ok: false, error: "This change order is already closed." };
     }
 
-    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference });
+    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference, ownerId: existing.ownerId });
     const baseline = quote?.subtotalCents ?? existing.baselineCents ?? 0;
 
     let updated: ChangeDoc | null = null;
@@ -640,7 +650,7 @@ export async function withdrawChange(reference: string): Promise<ChangeActionRes
     try {
       await session.withTransaction(async () => {
         updated = await changeOrdersCollection(db).findOneAndUpdate(
-          { reference, status: { $in: ["draft", "sent", "expired"] } },
+          { reference, ownerId: existing.ownerId, status: { $in: ["draft", "sent", "expired"] } },
           {
             $set: { status: "withdrawn", updatedAt: nowIso },
             $push: {
@@ -702,7 +712,7 @@ export async function deleteChange(reference: string): Promise<ChangeActionResul
   try {
     const db = await getDb();
 
-    const existing = await changeOrdersCollection(db).findOne({ reference });
+    const existing = await changeOrdersCollection(db).findOne({ reference, ownerId: await requireOwnerId() });
     if (!existing) return { ok: false, error: "That change order no longer exists." };
     if (existing.status !== "draft") {
       return {
@@ -711,7 +721,7 @@ export async function deleteChange(reference: string): Promise<ChangeActionResul
       };
     }
 
-    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference });
+    const quote = await quotesCollection(db).findOne({ jobReference: existing.jobReference, ownerId: existing.ownerId });
     const baseline = quote?.subtotalCents ?? existing.baselineCents ?? 0;
     const nowIso = new Date().toISOString();
 
@@ -719,7 +729,7 @@ export async function deleteChange(reference: string): Promise<ChangeActionResul
     try {
       await session.withTransaction(async () => {
         const result = await changeOrdersCollection(db).deleteOne(
-          { reference, status: "draft" },
+          { reference, ownerId: existing.ownerId, status: "draft" },
           { session },
         );
         if (result.deletedCount === 0) throw new Error("That change order is no longer a draft.");

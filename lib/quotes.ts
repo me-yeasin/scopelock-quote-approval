@@ -47,6 +47,12 @@ export type QuoteEvent = {
 };
 
 export type QuoteDoc = {
+  /**
+   * Hex string of the owning user. Written at creation; every query filters on
+   * it. Optional in the type only because documents created before
+   * authentication may still lack it until they are claimed.
+   */
+  ownerId?: string;
   _id: ObjectId;
   /** Gapless per-year number, e.g. Q-2026-0004. */
   reference: string;
@@ -89,12 +95,22 @@ const COUNTERS = "counters";
  * burned (a gap) rather than reused — reusing a number would be worse,
  * because two different documents would have carried the same reference.
  */
-export async function nextQuoteReference(db: Db, now = new Date()): Promise<string> {
+export async function nextQuoteReference(
+  db: Db,
+  now = new Date(),
+  ownerId = "legacy",
+): Promise<string> {
   const year = now.getFullYear();
   const counters = db.collection<{ _id: string; seq: number }>(COUNTERS);
 
+  /*
+    Numbering is per account per year. A shared counter would let one user
+    watch their reference jump from 0002 to 0007 because someone else created
+    jobs in between, which reads as data loss. The reference string itself
+    keeps its familiar shape.
+  */
   const result = await counters.findOneAndUpdate(
-    { _id: `quote:${year}` },
+    { _id: `quote:${ownerId}:${year}` },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" },
   );

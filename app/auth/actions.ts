@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { claimOrphanDocuments, ensureOwnershipIndexes } from "@/lib/ownership-migrate";
 import {
   normaliseEmail,
   safeNextPath,
@@ -76,6 +77,10 @@ export async function signUpAction(formData: FormData): Promise<AuthResult> {
     if (!created.ok) return created;
 
     await createSession(created.userId, await userAgent());
+
+    // Hand any pre-auth documents to the first account that ever signs in.
+    await claimOrphanDocuments(created.userId.toHexString());
+    await ensureOwnershipIndexes();
   } catch (error) {
     console.error("signUpAction failed", error);
     return {
@@ -119,6 +124,11 @@ export async function signInAction(formData: FormData, next?: string): Promise<A
     }
 
     await createSession(verified.user._id!, await userAgent());
+
+    // Re-running this is cheap: it returns immediately after the one-time
+    // handover has been recorded.
+    await claimOrphanDocuments(verified.user._id!.toHexString());
+    await ensureOwnershipIndexes();
     clearThrottle(throttleKey);
   } catch (error) {
     console.error("signInAction failed", error);

@@ -44,6 +44,12 @@ export type InvoiceEvent = {
 };
 
 export type InvoiceDoc = {
+  /**
+   * Hex string of the owning user. Written at creation; every query filters on
+   * it. Optional in the type only because documents created before
+   * authentication may still lack it until they are claimed.
+   */
+  ownerId?: string;
   _id: ObjectId;
   /** Gapless per-year number, e.g. INV-2026-0004. */
   reference: string;
@@ -104,12 +110,16 @@ const INVOICES = "invoices";
  * Two different invoices carrying the same reference would be worse than a
  * gap in the sequence.
  */
-export async function nextInvoiceReference(db: Db, now = new Date()): Promise<string> {
+export async function nextInvoiceReference(
+  db: Db,
+  now = new Date(),
+  ownerId = "legacy",
+): Promise<string> {
   const year = now.getFullYear();
   const counters = db.collection<{ _id: string; seq: number }>(COUNTERS);
 
   const result = await counters.findOneAndUpdate(
-    { _id: `invoice:${year}` },
+    { _id: `invoice:${ownerId}:${year}` },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" },
   );

@@ -5,6 +5,7 @@ import type { AuditSource, AuditTone } from "./audit-shared";
 import { changeOrdersCollection } from "./changes";
 import { invoicesCollection } from "./invoices";
 import { quotesCollection } from "./quotes";
+import { requireOwnerId } from "./ownership";
 import {
   addTo,
   pickPrimaryCurrency,
@@ -87,17 +88,18 @@ function isThisMonth(iso: string) {
 
 export async function getDashboard(): Promise<Dashboard> {
   const db = await getDb();
+  const ownerId = await requireOwnerId();
 
   const [rawJobs, quotes, changes, invoices] = await Promise.all([
     db
       .collection("jobs")
-      .find({})
+      .find({ ownerId })
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(RECENT_JOB_LIMIT)
       .toArray(),
-    quotesCollection(db).find({}).toArray(),
-    changeOrdersCollection(db).find({}).toArray(),
-    invoicesCollection(db).find({}).toArray(),
+    quotesCollection(db).find({ ownerId }).toArray(),
+    changeOrdersCollection(db).find({ ownerId }).toArray(),
+    invoicesCollection(db).find({ ownerId }).toArray(),
   ]);
 
   const money: DashboardMoney = {

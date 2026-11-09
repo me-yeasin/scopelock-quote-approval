@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "@/lib/ownership";
 import {
   ensureQuoteIndexes,
   lineTotalCents,
@@ -100,7 +101,8 @@ function mapDocToQuote(doc: QuoteDoc): Quote {
 export async function getQuotes(): Promise<GetQuotesResult> {
   try {
     const db = await getDb();
-    const docs = await quotesCollection(db).find({}).sort({ createdAt: -1 }).toArray();
+    const ownerId = await requireOwnerId();
+    const docs = await quotesCollection(db).find({ ownerId }).sort({ createdAt: -1 }).toArray();
     return { ok: true, quotes: docs.map(mapDocToQuote) };
   } catch (error) {
     return {
@@ -116,7 +118,7 @@ export async function getQuote(reference: string): Promise<QuoteActionResult> {
 
   try {
     const db = await getDb();
-    const doc = await quotesCollection(db).findOne({ reference });
+    const doc = await quotesCollection(db).findOne({ reference, ownerId: await requireOwnerId() });
     if (!doc) return { ok: false, error: "That quote no longer exists." };
     return { ok: true, quote: mapDocToQuote(doc) };
   } catch (error) {
@@ -146,7 +148,8 @@ export async function sendQuote(
     await ensureQuoteIndexes(db);
     const quotes = quotesCollection(db);
 
-    const existing = await quotes.findOne({ reference });
+    const ownerId = await requireOwnerId();
+    const existing = await quotes.findOne({ reference, ownerId });
     if (!existing) return { ok: false, error: "That quote no longer exists." };
 
     if (existing.status === "approved" || existing.status === "rejected") {
@@ -165,7 +168,7 @@ export async function sendQuote(
       method === "sms" ? existing.customer?.phone ?? "" : existing.customer?.email ?? "";
 
     const quote = await quotes.findOneAndUpdate(
-      { reference, status: { $in: ["draft", "sent", "expired"] } },
+      { reference, ownerId, status: { $in: ["draft", "sent", "expired"] } },
       {
         $set: {
           status: "sent",
@@ -222,6 +225,7 @@ export async function decideQuote(
 
   try {
     const db = await getDb();
+    const ownerId = await requireOwnerId();
     const now = new Date().toISOString();
 
     const update: Record<string, unknown> = {
@@ -244,7 +248,7 @@ export async function decideQuote(
     };
 
     const quote = await quotesCollection(db).findOneAndUpdate(
-      { reference, status: "sent" },
+      { reference, ownerId, status: "sent" },
       update,
       { returnDocument: "after" },
     );
@@ -258,7 +262,7 @@ export async function decideQuote(
       await db
         .collection("jobs")
         .updateOne(
-          { reference: quote.jobReference },
+          { reference: quote.jobReference, ownerId },
           { $set: { status: "inprogress", updatedAt: now } },
         );
     }
@@ -283,6 +287,7 @@ export async function expireStaleQuotes(): Promise<{ ok: true; expired: number }
 
     const result = await quotesCollection(db).updateMany(
       {
+        ownerId: await requireOwnerId(),
         status: { $in: ["draft", "sent"] },
         validUntil: { $lt: today, $ne: "" },
       },
@@ -444,7 +449,8 @@ export async function updateQuote(
     const db = await getDb();
     const quotes = quotesCollection(db);
 
-    const existing = await quotes.findOne({ reference });
+    const ownerId = await requireOwnerId();
+    const existing = await quotes.findOne({ reference, ownerId });
     if (!existing) return { ok: false, error: "That quote no longer exists." };
 
     // Frozen once settled: the approved figure is the baseline the whole
@@ -512,7 +518,7 @@ export async function updateQuote(
 
     try {
       await session.withTransaction(async () => {
-        updated = await quotes.findOneAndUpdate({ reference }, update, {
+        updated = await quotes.findOneAndUpdate({ reference, ownerId }, update, {
           returnDocument: "after",
           session,
         });
@@ -526,7 +532,7 @@ export async function updateQuote(
         await db
           .collection("jobs")
           .updateOne(
-            { reference: updated.jobReference },
+            { reference: updated.jobReference, ownerId },
             { $set: { totalCents: subtotalCents, updatedAt: now } },
             { session },
           );

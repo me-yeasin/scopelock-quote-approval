@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "@/lib/ownership";
 import { changeOrdersCollection, ensureChangeIndexes } from "@/lib/changes";
 import { ensureQuoteIndexes, quotesCollection } from "@/lib/quotes";
 import {
@@ -60,13 +61,15 @@ function today(): string {
 /** Rebuild one invoice from its documents. Returns null if it is gone. */
 async function loadDerived(reference: string): Promise<DerivedInvoice | null> {
   const db = await getDb();
-  const doc = await invoicesCollection(db).findOne({ reference });
+  const ownerId = await requireOwnerId();
+
+  const doc = await invoicesCollection(db).findOne({ reference, ownerId });
   if (!doc) return null;
 
   const [quote, changes] = await Promise.all([
-    quotesCollection(db).findOne({ reference: doc.quoteReference }),
+    quotesCollection(db).findOne({ reference: doc.quoteReference, ownerId }),
     changeOrdersCollection(db)
-      .find({ jobReference: doc.jobReference })
+      .find({ jobReference: doc.jobReference, ownerId })
       .sort({ createdAt: 1 })
       .toArray(),
   ]);
@@ -90,16 +93,18 @@ export async function getInvoices(): Promise<InvoiceListRow[]> {
   const db = await getDb();
   await Promise.all([ensureInvoiceIndexes(db), ensureQuoteIndexes(db), ensureChangeIndexes(db)]);
 
-  const docs = await invoicesCollection(db).find({}).sort({ issuedAt: -1 }).toArray();
+  const ownerId = await requireOwnerId();
+
+  const docs = await invoicesCollection(db).find({ ownerId }).sort({ issuedAt: -1 }).toArray();
   if (docs.length === 0) return [];
 
   const jobRefs = docs.map((doc) => doc.jobReference);
   const [quotes, changes] = await Promise.all([
     quotesCollection(db)
-      .find({ jobReference: { $in: jobRefs } })
+      .find({ jobReference: { $in: jobRefs }, ownerId })
       .toArray(),
     changeOrdersCollection(db)
-      .find({ jobReference: { $in: jobRefs } })
+      .find({ jobReference: { $in: jobRefs }, ownerId })
       .toArray(),
   ]);
 
@@ -196,11 +201,15 @@ export async function getInvoiceStats() {
  */
 export async function getInvoiceableJobs() {
   const db = await getDb();
-  const existing = await invoicesCollection(db).find({}, { projection: { jobReference: 1 } }).toArray();
+  const ownerId = await requireOwnerId();
+
+  const existing = await invoicesCollection(db)
+    .find({ ownerId }, { projection: { jobReference: 1 } })
+    .toArray();
   const taken = new Set(existing.map((doc) => doc.jobReference));
 
   const quotes = await quotesCollection(db)
-    .find({ status: "approved" })
+    .find({ ownerId, status: "approved" })
     .sort({ decidedAt: -1 })
     .toArray();
 
@@ -258,15 +267,16 @@ export async function createInvoice(
 
   const db = await getDb();
   await ensureInvoiceIndexes(db);
+  const ownerId = await requireOwnerId();
 
   // One invoice per job. Checked here for a clear message; the unique index
   // is what actually prevents the race.
-  const existing = await invoicesCollection(db).findOne({ jobReference });
+  const existing = await invoicesCollection(db).findOne({ jobReference, ownerId });
   if (existing) {
     return { ok: false, error: `This job already has invoice ${existing.reference}.` };
   }
 
-  const quote = await quotesCollection(db).findOne({ jobReference });
+  const quote = await quotesCollection(db).findOne({ jobReference, ownerId });
   if (!quote) return { ok: false, error: "This job has no quote to invoice." };
   if (quote.status !== "approved") {
     return {
@@ -275,7 +285,7 @@ export async function createInvoice(
     };
   }
 
-  const reference = await nextInvoiceReference(db);
+  const reference = await nextInvoiceReference(db, new Date(), ownerId);
   const issuedAt = today();
   const now = new Date().toISOString();
 
@@ -306,6 +316,7 @@ export async function createInvoice(
         now,
       ),
     ],
+    ownerId,
     createdAt: now,
     updatedAt: now,
   };
@@ -362,7 +373,8 @@ async function transition(
 
   const db = await getDb();
   const invoices = invoicesCollection(db);
-  const doc = await invoices.findOne({ reference });
+  const ownerId = await requireOwnerId();
+  const doc = await invoices.findOne({ reference, ownerId });
   if (!doc) return { ok: false, error: "That invoice no longer exists." };
 
   const blocked = transitionError(doc.status, to);
@@ -391,7 +403,7 @@ async function transition(
   const result = await invoices.updateOne(
     // Status in the filter makes this a compare-and-set: if another request
     // changed the status first, this update matches nothing.
-    { reference, status: doc.status },
+    { reference, ownerId, status: doc.status },
     {
       $set: set,
       $push: { activity: makeInvoiceEvent(eventType, label, detail, now) },
@@ -417,7 +429,8 @@ export async function recordInvoiceExport(
   reference: string,
 ): Promise<ActionResult<{ snapshotCents: number }>> {
   const db = await getDb();
-  const doc = await invoicesCollection(db).findOne({ reference });
+  const ownerId = await requireOwnerId();
+  const doc = await invoicesCollection(db).findOne({ reference, ownerId });
   if (!doc) return { ok: false, error: "That invoice no longer exists." };
 
   const derived = await loadDerived(reference);
@@ -425,7 +438,7 @@ export async function recordInvoiceExport(
 
   const now = new Date().toISOString();
   await invoicesCollection(db).updateOne(
-    { reference },
+    { reference, ownerId },
     {
       $set: { issuedSnapshotCents: derived.totalCents, updatedAt: now },
       $push: {

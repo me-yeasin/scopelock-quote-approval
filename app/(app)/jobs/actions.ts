@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 import type { Job, StatusKey } from "@/lib/jobs-types";
+import { requireOwnerId } from "@/lib/ownership";
 
 /* ------------------------------------------------------------------
    Types
@@ -99,6 +100,12 @@ function relativeTime(iso: unknown) {
 type JobItem = { totalCents?: unknown };
 
 type JobDoc = {
+  /**
+   * Hex string of the owning user. Written at creation; every query filters on
+   * it. Optional in the type only because documents created before
+   * authentication may still lack it until they are claimed.
+   */
+  ownerId?: string;
   _id?: unknown;
   reference?: unknown;
   status?: unknown;
@@ -167,6 +174,22 @@ function matchFilter(jobId: string) {
   return { reference: jobId };
 }
 
+/**
+ * The match filter narrowed to the signed-in account.
+ *
+ * Every mutation goes through this so a guessed reference cannot reach another
+ * user's job. The id alone is not enough: ids are visible in URLs and in
+ * customer-facing links.
+ */
+async function ownedMatchFilter(jobId: string) {
+  return { ...matchFilter(jobId), ownerId: await requireOwnerId() };
+}
+
+/** Ownership filter for list queries. */
+async function ownedFilter() {
+  return { ownerId: await requireOwnerId() };
+}
+
 /* ------------------------------------------------------------------
    Validation — shared by update so client and server agree
    ------------------------------------------------------------------ */
@@ -201,7 +224,7 @@ export async function getJobs(): Promise<GetJobsResult> {
     const db = await getDb();
     const docs = await db
       .collection("jobs")
-      .find({})
+      .find(await ownedFilter())
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -231,7 +254,7 @@ export async function updateJob(jobId: string, patch: JobPatch): Promise<UpdateJ
     return { ok: false, error: "Check the highlighted fields.", fields };
   }
 
-  const filter: Record<string, unknown> = matchFilter(jobId);
+  const filter: Record<string, unknown> = await ownedMatchFilter(jobId);
   if (patch.expectedUpdatedAt) {
     filter.updatedAt = patch.expectedUpdatedAt;
   }
@@ -256,7 +279,7 @@ export async function updateJob(jobId: string, patch: JobPatch): Promise<UpdateJ
     if (!result) {
       // Distinguish "gone" from "changed underneath us" so the UI can react.
       if (patch.expectedUpdatedAt) {
-        const stillExists = await db.collection("jobs").findOne(matchFilter(jobId));
+        const stillExists = await db.collection("jobs").findOne(await ownedMatchFilter(jobId));
         if (stillExists) {
           return {
             ok: false,
@@ -298,7 +321,8 @@ export async function deleteJob(jobId: string): Promise<DeleteJobResult> {
     const quotes = db.collection("quotes");
 
     // Resolve the job first so the cascade can match its quotes by reference.
-    const job = await jobs.findOne(matchFilter(jobId));
+    const ownerId = await requireOwnerId();
+    const job = await jobs.findOne({ ...matchFilter(jobId), ownerId });
     if (!job) {
       return { ok: false, notFound: true, error: "That job was already deleted." };
     }
@@ -312,11 +336,16 @@ export async function deleteJob(jobId: string): Promise<DeleteJobResult> {
         // Children first: if anything fails, the transaction rolls back and
         // the job is still there with its quotes intact.
         if (jobReference) {
-          const quoteResult = await quotes.deleteMany({ jobReference }, { session });
+          // Scoped as well, so the cascade can never reach another account's
+          // quotes that happen to share a reference.
+          const quoteResult = await quotes.deleteMany(
+            { jobReference, ownerId },
+            { session },
+          );
           quotesDeleted = quoteResult.deletedCount;
         }
 
-        const result = await jobs.deleteOne(matchFilter(jobId), { session });
+        const result = await jobs.deleteOne(await ownedMatchFilter(jobId), { session });
         if (result.deletedCount === 0) {
           throw new Error("That job was already deleted.");
         }

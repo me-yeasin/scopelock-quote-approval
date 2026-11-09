@@ -74,6 +74,12 @@ export type ChangeEvent = {
 };
 
 export type ChangeDoc = {
+  /**
+   * Hex string of the owning user. Written at creation; every query filters on
+   * it. Optional in the type only because documents created before
+   * authentication may still lack it until they are claimed.
+   */
+  ownerId?: string;
   _id: ObjectId;
   /** Gapless per-year number, e.g. CO-2026-0003. */
   reference: string;
@@ -122,12 +128,16 @@ const COUNTERS = "counters";
  * the document is written. A failed write therefore burns a number
  * rather than handing the same one out twice.
  */
-export async function nextChangeReference(db: Db, now = new Date()): Promise<string> {
+export async function nextChangeReference(
+  db: Db,
+  now = new Date(),
+  ownerId = "legacy",
+): Promise<string> {
   const year = now.getFullYear();
   const counters = db.collection<{ _id: string; seq: number }>(COUNTERS);
 
   const result = await counters.findOneAndUpdate(
-    { _id: `change:${year}` },
+    { _id: `change:${ownerId}:${year}` },
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: "after" },
   );
@@ -336,11 +346,13 @@ export async function syncJobTotals(
  * the sweep is safe to run repeatedly. Expiring is not billable and does
  * not change the job total.
  */
-export async function expireStaleChanges(db: Db): Promise<number> {
+export async function expireStaleChanges(db: Db, ownerId: string): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
 
   const result = await changeOrdersCollection(db).updateMany(
     {
+      // Scoped: one account's sweep must not touch another's documents.
+      ownerId,
       status: { $in: ["draft", "sent"] },
       validUntil: { $lt: today, $ne: "" },
     },

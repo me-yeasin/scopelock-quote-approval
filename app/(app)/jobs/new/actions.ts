@@ -2,6 +2,7 @@
 
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db";
+import { requireOwnerId } from "@/lib/ownership";
 import {
   buildLines,
   ensureQuoteIndexes,
@@ -168,6 +169,8 @@ export async function createJob(draftJson: string): Promise<CreateJobResult> {
     notes: readString(draft.notes).trim(),
     validUntil: readString(draft.validUntil),
     totalCents,
+    // Ownership is stamped at creation and never changes.
+    ownerId: await requireOwnerId(),
     createdAt: now,
     updatedAt: now,
   };
@@ -195,13 +198,14 @@ export async function createJob(draftJson: string): Promise<CreateJobResult> {
       await session.withTransaction(async () => {
         await db.collection("jobs").insertOne(doc, { session });
 
-        quoteReference = await nextQuoteReference(db, new Date(now));
+        quoteReference = await nextQuoteReference(db, new Date(now), doc.ownerId);
 
         const quote: QuoteDoc = {
           _id: new ObjectId(),
           reference: quoteReference,
           jobReference: reference,
           jobId: _id,
+          ownerId: doc.ownerId,
           // New quotes start as drafts — the scope is not agreed until the
           // customer approves the approval link.
           status: "draft",
