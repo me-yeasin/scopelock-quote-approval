@@ -17,8 +17,7 @@ import {
   QUOTE_STATUS_LABEL,
   expiryNote,
   money,
-  quoteProjected,
-  quoteTotal,
+  quoteBillable,
   type Quote,
   type QuoteStatus,
 } from "../../lib/quotes-types";
@@ -118,8 +117,8 @@ export default function QuotesPage() {
     const rejected = quotes.filter((q) => q.status === "rejected");
     const drafts = quotes.filter((q) => q.status === "draft");
 
-    const awaitingValue = awaiting.reduce((sum, q) => sum + quoteTotal(q), 0);
-    const approvedValue = approved.reduce((sum, q) => sum + quoteProjected(q), 0);
+    const awaitingValue = awaiting.reduce((sum, q) => sum + quoteBillable(q), 0);
+    const approvedValue = approved.reduce((sum, q) => sum + quoteBillable(q), 0);
     const decided = approved.length + rejected.length;
 
     return {
@@ -383,7 +382,7 @@ export default function QuotesPage() {
                         <td>{quote.customer}</td>
                         <td className="t-right">
                           <span className="q-num q-total">
-                            {money(quoteTotal(quote), quote.currency)}
+                            {money(quoteBillable(quote), quote.currency)}
                           </span>
                         </td>
                         <td>

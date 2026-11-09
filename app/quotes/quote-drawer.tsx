@@ -30,9 +30,9 @@ import {
   expiryNote,
   lineTotal,
   money,
+  quoteBillable,
   quoteProjected,
   quoteSubtotal,
-  quoteTotal,
   type Quote,
 } from "../../lib/quotes-types";
 
@@ -99,7 +99,9 @@ export default function QuoteDrawer({
 
   const expiry = expiryNote(quote, now);
   const subtotal = quoteSubtotal(quote);
-  const total = quoteTotal(quote);
+  // Billable total: baseline + approved changes. Using the bare baseline
+  // here was why an approved change never appeared in the locked total.
+  const total = quoteBillable(quote);
   const projected = quoteProjected(quote);
   const isLocked = quote.status === "approved";
   // Approved and rejected quotes are frozen: their figures are the record.
@@ -399,7 +401,7 @@ export default function QuoteDrawer({
               {quote.status === "rejected" ? (
                 <div className="q-total-row is-excluded">
                   <span className="label">Rejected — not billed</span>
-                  <span className="val">{money(total, quote.currency)}</span>
+                  <span className="val">{money(quoteBillable(quote), quote.currency)}</span>
                 </div>
               ) : null}
 

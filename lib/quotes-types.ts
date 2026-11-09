@@ -89,14 +89,27 @@ export function quoteSubtotal(quote: Quote) {
   return quote.lines.reduce((sum, line) => sum + lineTotal(line), 0);
 }
 
-/** The locked baseline agreed with the customer. */
+/** The locked baseline agreed with the customer, before any changes. */
 export function quoteTotal(quote: Quote) {
   return quoteSubtotal(quote);
 }
 
+/**
+ * What the customer actually owes: the baseline plus every approved
+ * change order.
+ *
+ * `quoteTotal` is only the agreed baseline — the quote document is frozen
+ * on approval, so approved changes are stored beside it and never folded
+ * into the line items. Anything presented as a final, billable figure must
+ * use this function, not `quoteTotal`.
+ */
+export function quoteBillable(quote: Quote) {
+  return quoteTotal(quote) + quote.approvedChangesCents;
+}
+
 /** What the job would total if every pending change were approved. */
 export function quoteProjected(quote: Quote) {
-  return quoteTotal(quote) + quote.approvedChangesCents + quote.pendingChangesCents;
+  return quoteBillable(quote) + quote.pendingChangesCents;
 }
 
 /* ------------------------------------------------------------------
