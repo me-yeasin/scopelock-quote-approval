@@ -1127,8 +1127,9 @@ ul { margin: 0; padding: 0; }
 
 .scope-bar { display: flex; gap: 3px; height: 6px; margin: 15px 0 11px; }
 .bar { display: block; border-radius: 999px; }
-.bar-approved { flex: 87; background: linear-gradient(90deg, #E4FBA4, #BDEF55); }
-.bar-awaiting { flex: 13; background: rgba(244, 190, 96, 0.9); }
+.bar-approved { background: linear-gradient(90deg, #E4FBA4, #BDEF55); }
+.bar-awaiting { background: rgba(244, 190, 96, 0.9); }
+.bar-empty { flex: 1; background: rgba(255, 255, 255, 0.12); }
 
 .scope-legend { display: flex; flex-wrap: wrap; gap: 5px 14px; }
 .legend-row { display: flex; align-items: center; gap: 5px; font-size: 10px; color: rgba(255, 255, 255, 0.52); }
@@ -1550,4 +1551,211 @@ ul { margin: 0; padding: 0; }
 .drawer-title-input[aria-invalid="true"] {
   border-color: var(--red-line);
   background: var(--red-soft);
+}
+
+/* ------------------------------------------------------------------
+   Overview — idle state
+
+   A brand-new account must never meet a wall of zeros. The idle state
+   explains the product's one central idea (a job owns everything) and gives
+   a single, obvious next step, with the quick actions kept available but
+   demoted.
+   ------------------------------------------------------------------ */
+.ov-idle {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+.ov-idle-card {
+  padding: 34px 30px 30px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.ov-idle-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 14px;
+  border-radius: 13px;
+  background: var(--lime-soft);
+  border: 1px solid #DCEFAC;
+  color: var(--pine-700);
+}
+
+.ov-idle-card h2 {
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.ov-idle-card > p {
+  max-width: 46ch;
+  margin: 8px auto 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.ov-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 22px 0 24px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.ov-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--paper-2);
+}
+
+.ov-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--pine-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-steps strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.ov-steps div > span {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.ov-action-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ov-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  color: var(--ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background 0.14s var(--ease);
+}
+
+.ov-action:last-child {
+  border-bottom: 0;
+}
+
+.ov-action:hover {
+  background: #FBFBF6;
+}
+
+.ov-action:focus-visible {
+  outline: 2px solid rgba(23, 80, 63, 0.4);
+  outline-offset: -2px;
+}
+
+.ov-action-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  color: var(--pine-700);
+}
+
+.ov-action.is-primary .ov-action-ico {
+  background: var(--pine-700);
+  border-color: var(--pine-700);
+  color: var(--lime);
+}
+
+.ov-action-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.ov-action-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ov-action-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* ---- Shared small states ---- */
+.stat-note.is-danger {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.scope-cta.is-calm {
+  color: var(--muted);
+  background: var(--paper-2);
+}
+
+.activity-item.is-empty .event-text {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .ov-idle {
+    grid-template-columns: 1fr;
+  }
+
+  .ov-idle-card {
+    padding: 26px 20px 22px;
+  }
+}
+
+.ov-action-note {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--faint);
 }
