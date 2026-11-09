@@ -15,8 +15,8 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import AppShell, { Icon } from "../app-shell";
-import { money } from "../../lib/quotes-types";
+import AppShell, { Icon } from "../../app-shell";
+import { money } from "../../../lib/quotes-types";
 import {
   AUDIT_FILTERS,
   SOURCE_LABEL,
@@ -24,8 +24,8 @@ import {
   type AuditSource,
   type AuditSummary,
   type AuditTone,
-} from "../../lib/audit-shared";
-import { dayHeading, groupByDay, timeOfDay } from "../../lib/audit-view";
+} from "../../../lib/audit-shared";
+import { dayHeading, groupByDay, timeOfDay } from "../../../lib/audit-view";
 import { useNow } from "../quotes/use-now";
 import { getAuditFeed, getAuditJobOptions } from "./actions";
 import "./audit.css";

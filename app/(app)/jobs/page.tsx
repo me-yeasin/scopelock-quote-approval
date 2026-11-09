@@ -10,14 +10,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import AppShell, { Icon } from "../app-shell";
+import AppShell, { Icon } from "../../app-shell";
 import {
   STATUS_LABEL,
   FILTERS,
   type Filter,
   type Job,
   type StatusKey,
-} from "../../lib/jobs-data";
+} from "../../../lib/jobs-data";
 import {
   getJobs,
   updateJob,

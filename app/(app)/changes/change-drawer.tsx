@@ -14,7 +14,7 @@ import {
   Lock,
   X,
 } from "lucide-react";
-import { Icon } from "../app-shell";
+import { Icon } from "../../app-shell";
 import {
   CHANGE_KIND_LABEL,
   CHANGE_STATUS_LABEL,
@@ -24,8 +24,8 @@ import {
   changeNewTotal,
   type ChangeOrder,
   type ChangeOrderStatus,
-} from "../../lib/changes-types";
-import { money } from "../../lib/quotes-types";
+} from "../../../lib/changes-types";
+import { money } from "../../../lib/quotes-types";
 import { deleteChange, sendChange, withdrawChange } from "./actions";
 
 /* ------------------------------------------------------------------

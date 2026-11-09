@@ -14,14 +14,14 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { Icon } from "../app-shell";
-import { money } from "../../lib/quotes-types";
+import { Icon } from "../../app-shell";
+import { money } from "../../../lib/quotes-types";
 import {
   canIssue,
   canMarkPaid,
   canVoid,
   type DerivedInvoice,
-} from "../../lib/invoices";
+} from "../../../lib/invoices";
 import {
   getInvoice,
   issueInvoice,

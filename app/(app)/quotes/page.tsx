@@ -11,7 +11,7 @@ import {
   Receipt,
   X,
 } from "lucide-react";
-import AppShell, { Icon } from "../app-shell";
+import AppShell, { Icon } from "../../app-shell";
 import {
   QUOTE_FILTERS,
   QUOTE_STATUS_LABEL,
@@ -20,7 +20,7 @@ import {
   quoteBillable,
   type Quote,
   type QuoteStatus,
-} from "../../lib/quotes-types";
+} from "../../../lib/quotes-types";
 import { getQuotes } from "./actions";
 import QuoteDrawer from "./quote-drawer";
 import { useNow } from "./use-now";

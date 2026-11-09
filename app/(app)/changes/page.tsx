@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import AppShell, { Icon } from "../app-shell";
+import AppShell, { Icon } from "../../app-shell";
 import {
   CHANGE_FILTERS,
   CHANGE_KIND_LABEL,
@@ -23,8 +23,8 @@ import {
   type ChangeKind,
   type ChangeOrder,
   type ChangeOrderStatus,
-} from "../../lib/changes-types";
-import { money } from "../../lib/quotes-types";
+} from "../../../lib/changes-types";
+import { money } from "../../../lib/quotes-types";
 import { getChanges } from "./actions";
 import ChangeDrawer from "./change-drawer";
 import "./changes.css";

@@ -13,8 +13,8 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import AppShell, { Icon } from "../app-shell";
-import { money } from "../../lib/quotes-types";
+import AppShell, { Icon } from "../../app-shell";
+import { money } from "../../../lib/quotes-types";
 import { useNow } from "../quotes/use-now";
 import { getInvoiceStats, getInvoices, type InvoiceListRow } from "./actions";
 import InvoiceDrawer from "./invoice-drawer";

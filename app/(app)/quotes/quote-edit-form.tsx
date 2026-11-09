@@ -1,8 +1,8 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { Icon } from "../app-shell";
-import { money, type Quote } from "../../lib/quotes-types";
+import { Icon } from "../../app-shell";
+import { money, type Quote } from "../../../lib/quotes-types";
 
 /* ------------------------------------------------------------------
    Inline quote editor.

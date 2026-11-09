@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useCallback, useEffect, useState, type ReactNode, type RefObject } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  useTransition,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import {
   Bell,
   ChevronRight,
   Lock,
+  LogOut,
   Menu,
-  MoreHorizontal,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +29,21 @@ import {
 } from "./notifications-actions";
 import NotificationPanel from "./notification-panel";
 import { notificationCountLabel, type NotificationFeed } from "../lib/notifications-shared";
+import { signOutAction as signOut } from "./auth/actions";
+import { useSessionUser } from "./use-session-user";
+
+/** "James Doyle" -> "JD"; single names get one letter. */
+function initialsOf(name: string) {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0] ?? "")
+      .join("")
+      .toUpperCase() || "?"
+  );
+}
 
 /* ------------------------------------------------------------------
    Icon helper — keeps every glyph decorative + consistently sized
@@ -57,7 +80,11 @@ export default function AppShell({
   onQueryChange = () => {},
   searchRef,
 }: AppShellProps) {
+  // Supplied once by the root layout via context.
+  const user = useSessionUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, startTransition] = useTransition();
+  const initials = initialsOf(user?.name ?? "");
   // Live totals for the nav badges. `null` until loaded, so no badge flashes
   // on first paint; a count of 0 renders no badge at all.
   const [counts, setCounts] = useState<NavCounts | null>(null);
@@ -247,14 +274,23 @@ export default function AppShell({
               </span>
             </div>
 
-            <button className="user-card" type="button">
-              <span className="user-avatar">JD</span>
+            {/* The real signed-in account, with a way out. */}
+            <div className="user-card">
+              <span className="user-avatar">{initials}</span>
               <span className="user-meta">
-                <span className="user-name">James Doyle</span>
-                <span className="user-org">Harris &amp; Co.</span>
+                <span className="user-name">{user?.name ?? "Your account"}</span>
+                <span className="user-org">{user?.companyName ?? ""}</span>
               </span>
-              <Icon icon={MoreHorizontal} className="ico ico-sm user-more" />
-            </button>
+              <button
+                className="user-signout"
+                type="button"
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => startTransition(() => void signOut())}
+              >
+                <Icon icon={LogOut} className="ico ico-sm" />
+              </button>
+            </div>
           </div>
         </aside>
 

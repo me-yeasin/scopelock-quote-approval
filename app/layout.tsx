@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Instrument_Serif, Inter_Tight } from "next/font/google";
 import KeyedChildren from "./keyed-children";
+
 import "./globals.css";
 
 const interTight = Inter_Tight({

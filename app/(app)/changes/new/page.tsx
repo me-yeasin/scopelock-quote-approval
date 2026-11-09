@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowDownRight, ArrowUpRight, Plus, Trash2 } from "lucide-react";
-import AppShell, { Icon } from "../../app-shell";
+import AppShell, { Icon } from "../../../app-shell";
 import {
   CHANGE_KIND_LABEL,
   changeNet,
   type ChangeKind,
-} from "../../../lib/changes-types";
-import { money } from "../../../lib/quotes-types";
+} from "../../../../lib/changes-types";
+import { money } from "../../../../lib/quotes-types";
 import { createChange, getEligibleJobs, type EligibleJob } from "../actions";
 import "../changes.css";
 import "./new-change.css";

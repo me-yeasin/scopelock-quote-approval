@@ -22,12 +22,12 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { LucideIcon as LucideIconType } from "lucide-react";
-import AppShell, { Icon } from "./app-shell";
+import AppShell, { Icon } from "../app-shell";
 import {
   FILTERS,
   STATUS_LABEL,
   type Filter,
-} from "../lib/jobs-data";
+} from "../../lib/jobs-data";
 import {
   greetingFor,
   headlineMoney,
@@ -36,9 +36,9 @@ import {
   type Dashboard,
   type DashboardActivity,
   type DashboardJobRow,
-} from "../lib/dashboard-shared";
+} from "../../lib/dashboard-shared";
 import { useNow } from "./quotes/use-now";
-import { loadDashboard } from "./overview-actions";
+import { loadDashboard } from "../overview-actions";
 
 /* ------------------------------------------------------------------
    Overview.

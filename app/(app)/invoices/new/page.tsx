@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ReceiptText } from "lucide-react";
-import AppShell, { Icon } from "../../app-shell";
-import { money } from "../../../lib/quotes-types";
+import AppShell, { Icon } from "../../../app-shell";
+import { money } from "../../../../lib/quotes-types";
 import { createInvoice, getInvoiceableJobs } from "../actions";
 import "./new-invoice.css";
 

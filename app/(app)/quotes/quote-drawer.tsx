@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { Icon } from "../app-shell";
+import { Icon } from "../../app-shell";
 import { useNow } from "./use-now";
 import { sendQuote, updateQuote } from "./actions";
 import QuoteEditForm, {
@@ -34,7 +34,7 @@ import {
   quoteProjected,
   quoteSubtotal,
   type Quote,
-} from "../../lib/quotes-types";
+} from "../../../lib/quotes-types";
 
 function formatDate(iso: string) {
   const d = new Date(iso);
