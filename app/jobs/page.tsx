@@ -329,7 +329,7 @@ function JobDrawer({
           {confirming ? (
             <div className="confirm-bar" role="alert">
               <span className="confirm-text">
-                Delete <strong>{job.title}</strong>? This cannot be undone.
+                Delete <strong>{job.title}</strong> and its quote? This cannot be undone.
               </span>
               <div className="confirm-actions">
                 <button

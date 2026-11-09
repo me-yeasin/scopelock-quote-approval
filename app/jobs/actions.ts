@@ -26,7 +26,7 @@ export type UpdateJobResult =
   | { ok: false; error: string; fields?: JobFieldErrors; conflict?: boolean };
 
 export type DeleteJobResult =
-  | { ok: true; jobId: string }
+  | { ok: true; jobId: string; quotesDeleted: number }
   | { ok: false; error: string; notFound?: boolean };
 
 export type JobPatch = {
@@ -280,22 +280,56 @@ export async function updateJob(jobId: string, patch: JobPatch): Promise<UpdateJ
   }
 }
 
-/** Delete a job by its ObjectId or reference. */
+/**
+ * Delete a job and everything that belongs to it.
+ *
+ * A quote has no meaning without its job, so the child documents are removed
+ * in the same transaction: either the job and all of its quotes disappear
+ * together, or nothing changes. Without this, deleting a job would leave
+ * orphaned quotes visible on the Quotes screen, pointing at a job that no
+ * longer exists.
+ */
 export async function deleteJob(jobId: string): Promise<DeleteJobResult> {
   if (!jobId) return { ok: false, error: "Missing job reference." };
 
   try {
     const db = await getDb();
-    const result = await db.collection("jobs").deleteOne(matchFilter(jobId));
+    const jobs = db.collection("jobs");
+    const quotes = db.collection("quotes");
 
-    if (result.deletedCount === 0) {
+    // Resolve the job first so the cascade can match its quotes by reference.
+    const job = await jobs.findOne(matchFilter(jobId));
+    if (!job) {
       return { ok: false, notFound: true, error: "That job was already deleted." };
     }
 
+    const jobReference = typeof job.reference === "string" ? job.reference : "";
+    let quotesDeleted = 0;
+
+    const session = db.client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        // Children first: if anything fails, the transaction rolls back and
+        // the job is still there with its quotes intact.
+        if (jobReference) {
+          const quoteResult = await quotes.deleteMany({ jobReference }, { session });
+          quotesDeleted = quoteResult.deletedCount;
+        }
+
+        const result = await jobs.deleteOne(matchFilter(jobId), { session });
+        if (result.deletedCount === 0) {
+          throw new Error("That job was already deleted.");
+        }
+      });
+    } finally {
+      await session.endSession();
+    }
+
     revalidatePath("/jobs");
+    revalidatePath("/quotes");
     revalidatePath("/");
 
-    return { ok: true, jobId };
+    return { ok: true, jobId, quotesDeleted };
   } catch (error) {
     return {
       ok: false,
