@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Instrument_Serif, Inter_Tight } from "next/font/google";
 import KeyedChildren from "./keyed-children";
 import "./globals.css";
@@ -29,7 +30,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${interTight.variable} ${instrumentSerif.variable}`}
     >
       <body>
-        <KeyedChildren>{children}</KeyedChildren>
+        {/*
+          KeyedChildren reads usePathname(), which suspends on routes whose
+          dynamic params are unknown at build time (e.g. the public
+          /q/[token] quote page). The boundary keeps every other route
+          prerenderable instead of failing the build.
+        */}
+        <Suspense fallback={children}>
+          <KeyedChildren>{children}</KeyedChildren>
+        </Suspense>
       </body>
     </html>
   );
