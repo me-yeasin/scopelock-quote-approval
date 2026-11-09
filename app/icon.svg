@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="ScopeLock">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#E4FBA4" />
+      <stop offset="0.55" stop-color="#C4EE55" />
+      <stop offset="1" stop-color="#A9DA3D" />
+    </linearGradient>
+  </defs>
+  <rect x="0.96" y="0.96" width="30.08" height="30.08" rx="6.72" fill="url(#tile)" />
+  <g fill="none" stroke="#071F19" stroke-width="1.92" stroke-linecap="round">
+    <path d="M12.08 10.7a3.92 3.92 0 0 1 7.84 0" />
+  </g>
+  <rect x="9.28" y="10.98" width="13.44" height="13.44" rx="1.84" fill="#071F19" />
+  <circle cx="16" cy="17.54" r="1.57" fill="url(#tile)" />
+  <rect x="15.33" y="17.34" width="1.34" height="4.19" rx="0.67" fill="url(#tile)" />
+</svg>

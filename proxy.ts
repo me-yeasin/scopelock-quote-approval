@@ -67,8 +67,13 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   /**
-   * Everything except static assets and the favicon. Excluding them keeps the
-   * wall off the hot path for CSS, JS and images.
+   * Everything except static assets, app icons and the web manifest. Excluding
+   * them keeps the wall off the hot path for CSS, JS and images — and, for the
+   * manifest, keeps it fetchable by browsers while signed out. (Icons are
+   * covered by the `svg|png|ico` list; the manifest is a `.webmanifest`, which
+   * is why it is named explicitly.)
    */
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
+  ],
 };
