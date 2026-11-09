@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowRight,
   Pencil,
@@ -27,6 +27,60 @@ import {
 } from "./actions";
 
 const SUMMARY_ORDER: StatusKey[] = ["approved", "awaiting", "inprogress", "draft"];
+
+/** Number of placeholder rows shown while the first page load is in flight. */
+const SKELETON_ROWS = 6;
+
+/* ------------------------------------------------------------------
+   Loading skeleton — one row per placeholder, mirroring the table's
+   real column widths so the layout does not shift when data lands.
+   ------------------------------------------------------------------ */
+function SkeletonRows() {
+  return (
+    <>
+      {Array.from({ length: SKELETON_ROWS }, (_, row) => (
+        <tr
+          key={row}
+          className="skeleton-row"
+          style={{ "--row": row } as CSSProperties}
+          aria-hidden="true"
+        >
+          <td className="cell-job">
+            <span className="sk sk-title" />
+            <span className="sk sk-sub" />
+          </td>
+          <td>
+            <span className="sk-customer">
+              <span className="sk-avatar" />
+              <span className="sk sk-text" style={{ width: 92 }} />
+            </span>
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" style={{ width: 40 }} />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" />
+          </td>
+          <td>
+            <span className="sk sk-pill" />
+          </td>
+          <td className="t-right">
+            <span className="sk sk-num" style={{ width: 48 }} />
+          </td>
+          <td className="t-right">
+            <span className="sk-actions">
+              <span className="sk sk-icon" />
+              <span className="sk sk-icon" />
+            </span>
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
 
 /** How the drawer was opened — decides its initial mode. */
 type DrawerIntent = "edit" | "delete";
@@ -466,7 +520,9 @@ export default function JobsPage() {
             <div className="panel-head">
               <div className="panel-title-wrap">
                 <h2>All jobs</h2>
-                <span className="count">{jobs.length}</span>
+                <span className="count">
+                  {loading ? <span className="sk sk-count" aria-hidden="true" /> : jobs.length}
+                </span>
               </div>
 
               <div className="panel-tools">
@@ -485,6 +541,8 @@ export default function JobsPage() {
                 </div>
               </div>
             </div>
+
+            {loading ? <div className="loading-bar" aria-hidden="true" /> : null}
 
             <div className="table-wrap">
               <table className="jobs-table">
@@ -510,11 +568,9 @@ export default function JobsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody aria-busy={loading}>
                   {loading ? (
-                    <tr className="empty-row">
-                      <td colSpan={8}>Loading jobs…</td>
-                    </tr>
+                    <SkeletonRows />
                   ) : visibleJobs.length === 0 ? (
                     <tr className="empty-row">
                       <td colSpan={8}>
@@ -596,7 +652,14 @@ export default function JobsPage() {
 
             <div className="panel-foot">
               <span className="foot-note">
-                Showing {loading ? "…" : visibleJobs.length} of {jobs.length} jobs
+                {loading ? (
+                  <span className="loading-note" role="status" aria-live="polite">
+                    <span className="dot-pulse" aria-hidden="true" />
+                    Loading jobs…
+                  </span>
+                ) : (
+                  `Showing ${visibleJobs.length} of ${jobs.length} jobs`
+                )}
               </span>
               <Link href="/jobs/new" className="link">
                 New job
@@ -617,13 +680,17 @@ export default function JobsPage() {
                 <li className="summary-row summary-total">
                   <span className="summary-dot total" aria-hidden="true" />
                   <span className="summary-name">All jobs</span>
-                  <span className="summary-val num">{jobs.length}</span>
+                  <span className="summary-val num">
+                    {loading ? <span className="sk sk-count" aria-hidden="true" /> : jobs.length}
+                  </span>
                 </li>
                 {SUMMARY_ORDER.map((status) => (
                   <li className="summary-row" key={status}>
                     <span className={`summary-dot ${status}`} aria-hidden="true" />
                     <span className="summary-name">{STATUS_LABEL[status]}</span>
-                    <span className="summary-val num">{counts[status]}</span>
+                    <span className="summary-val num">
+                      {loading ? <span className="sk sk-count" aria-hidden="true" /> : counts[status]}
+                    </span>
                   </li>
                 ))}
               </ul>
